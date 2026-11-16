@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pulse check: a webcam rPPG build by Aida Valiyeva</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Newsreader:ital,opsz,wght@1,6..72,400..700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#0D1210; --hero-light:#3C5446; --night-2:#121916; --lime:#DAF56B; --lime-ink:#0D1210;
+  --on-night:#EEF2EF; --mist:#8E9A93; --rule:rgba(218,245,107,.22); --rule-soft:rgba(238,242,239,.12);
+  --paper:#E7EBE8; --paper-ink:#121715; --paper-mist:#5D6862; --paper-rule:rgba(18,23,21,.16);
+  --warn:#F4B74A; --bad:#FF6F5E;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#171E1B; --paper-ink:#E9EEEA; --paper-mist:#97A39C; --paper-rule:rgba(233,238,234,.14);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#171E1B; --paper-ink:#E9EEEA; --paper-mist:#97A39C; --paper-rule:rgba(233,238,234,.14);
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--night);color:var(--on-night);
+  font-family:Archivo,"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:17px;line-height:1.55;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+.micro{font-size:10.5px;line-height:1.25;font-weight:500;font-stretch:118%;text-transform:uppercase;letter-spacing:.03em}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid currentColor;border-radius:999px;padding:6px 14px;text-decoration:none}
+.pill::before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor}
+:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+
+/* ---------- hero ---------- */
+.hero{position:relative;min-height:100vh;padding:22px clamp(18px,4vw,56px) 0;isolation:isolate;overflow:hidden;
+  background:linear-gradient(172deg,var(--hero-light) 0%,#1A2520 30%,var(--night) 62%,#060908 100%);background-size:100% 240%;
+  animation:shade 16s ease-in-out infinite alternate}
+@keyframes shade{from{background-position:50% 0%}to{background-position:50% 100%}}
+.grain{position:absolute;inset:0;z-index:-1;opacity:.07;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+@media (prefers-reduced-motion: reduce){.hero{animation:none}}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.who{display:flex;gap:14px;align-items:center}
+.who b{font-weight:600;font-stretch:100%;font-size:15px;letter-spacing:-.005em}
+.who .micro{color:var(--mist)}
+nav{display:flex;gap:6px;flex-wrap:wrap}
+nav .pill{font-size:10.5px;font-stretch:118%;text-transform:uppercase;font-weight:500;letter-spacing:.03em;color:var(--on-night);border:0;padding:7px 10px}
+nav .pill:hover{color:var(--lime)}
+
+.stage{display:grid;grid-template-columns:1fr minmax(0,1.5fr) 1fr;align-items:center;gap:clamp(20px,4vw,56px);margin-top:clamp(28px,6vh,64px)}
+@media (max-width:900px){.stage{grid-template-columns:1fr;justify-items:center;text-align:center}}
+
+.intro{max-width:30ch;justify-self:start}
+@media (max-width:900px){.intro{justify-self:center;order:2}}
+.intro .copy{font-size:15px;color:var(--mist);margin:10px 0 22px}
+.intro .copy strong{color:var(--on-night);font-weight:600}
+.tagline{display:flex;gap:10px;align-items:center;color:var(--on-night)}
+@media (max-width:900px){.tagline{justify-content:center}}
+.tagline .pill{padding:3px 10px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+@media (max-width:900px){.btns{justify-content:center}}
+.btn{font:inherit;font-size:12px;font-weight:600;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;
+  border-radius:999px;padding:13px 22px;cursor:pointer;border:1px solid var(--lime);background:var(--lime);color:var(--lime-ink)}
+.btn.line{background:transparent;color:var(--on-night);border-color:rgba(238,242,239,.45)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.err{color:var(--bad);font-size:14px;margin:14px 0 0}
+.progress{color:var(--mist);margin-top:16px}
+
+/* camera frame */
+.cam{margin:0;width:100%;max-width:540px;justify-self:center}
+@media (max-width:900px){.cam{order:1}}
+.frame{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#06090A;border:1px solid var(--rule)}
+.frame video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;transform:scaleX(-1);display:block}
+.guides{position:absolute;inset:0;pointer-events:none}
+.oval{position:absolute;left:31%;top:7%;width:38%;height:82%;border:1px dashed rgba(238,242,239,.5);border-radius:50%}
+.roi{position:absolute;border:1.5px solid var(--lime);border-radius:4px}
+.roi .micro{position:absolute;left:50%;top:-18px;transform:translateX(-50%);color:var(--lime);white-space:nowrap}
+.idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:12%;color:var(--mist);background:radial-gradient(circle at 50% 35%,#1B2721,#070B09 80%)}
+.idle span{font-size:40px;color:var(--lime);line-height:1}
+.idle p{margin:0;max-width:30ch;font-size:15px}
+.tag{position:absolute;top:12px;left:12px;color:var(--on-night);background:rgba(13,18,16,.65);padding:5px 11px;border-radius:999px}
+.tag.r{left:auto;right:12px}
+.tag.r.live{background:var(--lime);color:var(--lime-ink)}
+.cam figcaption{color:var(--mist);margin-top:12px;text-align:center}
+
+.readout{justify-self:end;text-align:right;max-width:280px}
+@media (max-width:900px){.readout{justify-self:center;text-align:center;order:3}}
+.readout .micro{color:var(--mist)}
+.bpm{font-size:clamp(6rem,13vw,10.5rem);font-weight:700;font-stretch:72%;line-height:.82;letter-spacing:-.045em;color:var(--lime);font-variant-numeric:tabular-nums;margin:6px 0 2px}
+.bpm.untrusted.waiting{text-decoration:none}
+.bpm.untrusted{color:transparent;-webkit-text-stroke:1.5px var(--mist);text-decoration:line-through;text-decoration-color:var(--bad)}
+.unit{font-size:20px;font-weight:300;font-stretch:125%;letter-spacing:.02em}
+.status{font-size:15px;font-weight:600;margin:14px 0 6px}
+.qbar{height:4px;background:rgba(238,242,239,.14);border-radius:9px;overflow:hidden;margin:10px 0 12px}
+#qfill{height:100%;width:0;background:var(--lime);border-radius:9px;transition:width .4s,background .4s}
+.reasons{list-style:none;padding:0;margin:0;color:var(--mist);font-size:14px}
+.parts{display:flex;gap:18px;justify-content:flex-end;margin-top:16px}
+@media (max-width:900px){.parts{justify-content:center}}
+.parts div{text-align:inherit}
+.parts strong{display:block;font-size:22px;font-weight:600;font-stretch:80%;font-variant-numeric:tabular-nums;color:var(--on-night)}
+
+.title{margin-top:clamp(30px,6vh,70px);border-top:1px solid var(--rule-soft)}
+.title .meta{display:flex;justify-content:space-between;align-items:end;gap:20px;padding:14px 0 6px;color:var(--mist)}
+.title .meta .year{font-size:clamp(2rem,4vw,3.4rem);font-weight:300;font-stretch:90%;color:var(--on-night);letter-spacing:-.03em;line-height:1}
+.title h1{margin:0;font-size:clamp(3.4rem,12vw,11.5rem);line-height:.86;font-weight:650;font-stretch:96%;letter-spacing:-.055em;color:var(--lime);white-space:nowrap}
+.title .sub{display:flex;justify-content:space-between;gap:20px;align-items:center;border-top:1px solid var(--rule-soft);margin-top:10px;padding:14px 0 26px}
+.title .sub .big{font-size:clamp(1.3rem,2.6vw,2.2rem);font-weight:300;font-stretch:110%;letter-spacing:-.02em}
+@media (max-width:620px){.title .meta .hide,.title .sub .micro{display:none}}
+
+.ticker{background:var(--lime);color:var(--lime-ink);overflow:hidden;white-space:nowrap;padding:11px 0}
+.ticker div{display:inline-block;animation:tick 32s linear infinite;font-size:14px;font-weight:600;font-stretch:120%;text-transform:uppercase;letter-spacing:.02em}
+.ticker span{margin:0 22px}
+@keyframes tick{to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion: reduce){.ticker div{animation:none}}
+
+/* ---------- sections ---------- */
+section{padding:clamp(70px,11vw,140px) clamp(18px,4vw,56px)}
+.sec-head{display:grid;grid-template-columns:auto 1fr;gap:clamp(16px,3vw,40px);align-items:start;margin-bottom:clamp(36px,6vw,70px)}
+.sec-num{font-size:clamp(1.4rem,2.4vw,2rem);font-weight:300;font-stretch:120%;color:var(--lime);line-height:1.1}
+.sec-head h2{margin:0;font-weight:650;font-stretch:96%;letter-spacing:-.05em;line-height:.9;font-size:clamp(2.8rem,8vw,7rem)}
+.serif{font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-style:italic;font-weight:600;font-stretch:normal;letter-spacing:-.025em}
+.sec-head h2 .serif{display:block;font-size:1.06em;line-height:.95;color:var(--lime);margin-left:-.03em}
+.log .sec-head h2 .serif{color:var(--paper-ink)}
+.sec-head h2 .thin{display:block;font-weight:200;font-stretch:125%;letter-spacing:-.04em;font-size:.62em;padding-left:.2em}
+.sec-head h2 .push{display:block;padding-left:clamp(30px,12vw,200px)}
+.sec-head p{max-width:46ch;color:var(--mist);margin:20px 0 0;font-size:16px}
+
+/* test */
+.test{background:var(--night-2)}
+.picker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
+.chip{font:inherit;font-size:12px;font-weight:500;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;
+  border-radius:999px;padding:9px 16px;background:transparent;color:var(--on-night);border:1px solid rgba(238,242,239,.35)}
+.chip[aria-pressed="true"]{background:var(--on-night);color:var(--night);border-color:var(--on-night)}
+.picker .gap{width:16px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);margin:48px 0 40px;border-top:1px solid var(--rule)}
+.stats div{padding:16px 16px 0 0;border-right:1px solid var(--rule-soft)}
+.stats div:last-child{border-right:0}
+.stats div+div{padding-left:16px}
+.stats .micro{color:var(--mist)}
+.stats strong{display:block;font-size:clamp(2.6rem,6vw,4.8rem);font-weight:650;font-stretch:72%;letter-spacing:-.04em;line-height:1;color:var(--lime);margin-top:10px;font-variant-numeric:tabular-nums}
+.stats .none{color:transparent;-webkit-text-stroke:1px var(--mist)}
+.stats strong small{font-size:.32em;font-weight:400;font-stretch:115%;color:var(--mist);letter-spacing:0;margin-left:4px}
+@media (max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.stats div:nth-child(2){border-right:0}.stats div:nth-child(3){padding-left:0}}
+.tablewrap{overflow-x:auto}
+table{width:100%;min-width:560px;border-collapse:collapse;font-variant-numeric:tabular-nums}
+th{text-align:left;color:var(--mist);padding:10px 12px 10px 0;border-bottom:1px solid var(--rule)}
+td{padding:14px 12px 14px 0;border-bottom:1px solid var(--rule-soft);font-size:16px}
+td input{width:86px;font:inherit;background:transparent;color:var(--on-night);border:0;border-bottom:1px solid rgba(238,242,239,.4);padding:2px 0}
+td input:focus{outline:none;border-bottom-color:var(--lime)}
+.empty{color:var(--mist);margin:18px 0 0;font-size:15px}
+.tools{display:flex;gap:18px;margin-top:20px}
+.textbtn{font:inherit;font-size:12px;font-weight:500;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;background:none;border:0;color:var(--mist);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:4px}
+.textbtn:hover{color:var(--on-night)}
+
+/* how */
+.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{display:grid;grid-template-columns:minmax(80px,180px) 1fr;gap:clamp(16px,4vw,60px);padding:26px 0;border-top:1px solid var(--rule-soft);counter-increment:s}
+.steps li:last-child{border-bottom:1px solid var(--rule-soft)}
+.steps li::before{content:"/0" counter(s);font-size:clamp(1.6rem,3vw,2.6rem);font-weight:200;font-stretch:120%;color:var(--lime);line-height:1}
+.steps h3{margin:0 0 6px;font-size:clamp(1.3rem,2.4vw,1.9rem);font-weight:650;font-stretch:88%;letter-spacing:-.03em;line-height:1.05}
+.steps p{margin:0;color:var(--mist);max-width:58ch}
+
+/* log */
+.log{background:var(--paper);color:var(--paper-ink)}
+.log .sec-num{color:var(--paper-ink)}
+.log .sec-head p{color:var(--paper-mist)}
+.log .reg{display:inline-flex;align-items:center;justify-content:center;width:1.1em;height:1.1em;border:3px solid currentColor;border-radius:50%;font-size:.5em;font-weight:800;vertical-align:.35em;margin-left:.15em}
+.prose{max-width:64ch;margin-left:clamp(0px,14vw,220px);font-size:18px;line-height:1.65}
+.prose p{margin:0 0 1.2em}
+.prose h3{font-size:10.5px;font-weight:600;font-stretch:118%;text-transform:uppercase;letter-spacing:.04em;margin:2.2em 0 .6em;color:var(--paper-mist)}
+.prose .lead{font-size:clamp(1.3rem,2.2vw,1.65rem);line-height:1.35;font-weight:400;letter-spacing:-.015em;margin-bottom:1.4em}
+.fill{background:var(--lime);color:var(--lime-ink);padding:1px 6px;border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.disclaimer{margin-top:2.4em;padding-top:16px;border-top:1px solid var(--paper-rule);font-size:14px;color:var(--paper-mist)}
+
+footer{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;padding:40px clamp(18px,4vw,56px) 34px;color:var(--mist)}
+footer .sig{font-size:clamp(2.6rem,7vw,5.2rem);font-weight:700;font-stretch:96%;letter-spacing:-.05em;line-height:.9;color:var(--lime)}
+footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:-.03em}
+</style>
+</head>
+<body>
+
+<header class="hero" id="demo">
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="topbar">
+    <div class="who"><b>Aida Valiyeva</b><span class="micro" style="white-space:nowrap">TKS rPPG focus, build phase</span></div>
+    <nav aria-label="Sections">
+      <a class="pill" href="#demo">Demo</a>
+      <a class="pill" href="#test">Test</a>
+      <a class="pill" href="#how">How it works</a>
+      <a class="pill" href="#log">Build log</a>
+    </nav>
+  </div>
+
+  <div class="stage">
+    <div class="intro">
+      <div class="tagline micro"><span>Webcam in,<br>heart rate out</span></div>
+      <p class="copy">Your skin changes color by a fraction of a percent with every heartbeat. This prototype reads that from your forehead, and <strong>tells you when not to trust the number.</strong> Nothing leaves your device.</p>
+      <div class="btns">
+        <button class="btn" id="startBtn">Start camera</button>
+        <button class="btn line" id="stopBtn" disabled>Stop</button>
+      </div>
+      <p class="micro progress" id="progress"></p>
+      <p class="err" id="err" hidden></p>
+    </div>
+
+    <figure class="cam">
+      <div class="frame" id="frame">
+        <video id="cam" playsinline muted></video>
+        <div class="guides" id="guides" hidden><div class="oval"></div><div class="roi" id="roi"><span class="micro">Forehead</span></div></div>
+        <div class="idle" id="idle"><span aria-hidden="true"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10.5l5.2-3a.5.5 0 0 1 .8.4v8.2a.5.5 0 0 1-.8.4l-5.2-3"/><rect x="3" y="6" width="12" height="12" rx="2.5"/></svg></span><p>Face a window or lamp, then fit your face in the oval with your forehead in the box.</p></div>
+        <span class="tag micro">Your camera</span><span class="tag r micro" id="camState">Off</span>
+      </div>
+      <figcaption class="micro">The pulse is read only from the box on your forehead</figcaption>
+    </figure>
+
+    <div class="readout" aria-live="polite">
+      <div class="micro">Heart rate<br>beats per minute</div>
+      <div class="bpm untrusted waiting" id="bpm">00</div>
+      <div class="unit">bpm</div>
+      <p class="status" id="status">Waiting for video</p>
+      <div class="qbar"><div id="qfill"></div></div>
+      <ul class="reasons" id="reasons"><li>The bar shows how much to trust each reading.</li></ul>
+      <div class="parts micro">
+        <div>Quality<strong id="score">–</strong></div>
+        <div>Pulse<strong id="pSnr">–</strong></div>
+        <div>Stillness<strong id="pMot">–</strong></div>
+        <div>Light<strong id="pLum">–</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="title">
+    <div class="meta">
+      <span class="year">2026</span>
+      <span class="micro hide">Remote photoplethysmography<br>with a built-in trust score</span>
+      <span class="micro">Runs in<br>your browser</span>
+    </div>
+    <h1>Pulse check</h1>
+    <div class="sub">
+      <span class="big">Webcam // heart rate // trust score</span>
+    </div>
+  </div>
+</header>
+
+
+<section class="test" id="test">
+  <div class="sec-head">
+    <span class="sec-num">/01</span>
+    <div>
+      <h2>Test it against<span class="serif">a real sensor</span></h2>
+      <p>No smartwatch needed. Put two fingers on your wrist or neck and count your pulse for 30 seconds while the camera runs, then double it. Save the reading and type in your count. A clip-on pulse oximeter works too.</p>
+    </div>
+  </div>
+
+  <div class="picker" role="group" aria-label="Condition">
+    <button class="chip" aria-pressed="true">Sitting still</button>
+    <button class="chip" aria-pressed="false">Talking</button>
+    <button class="chip" aria-pressed="false">Moving head</button>
+    <button class="chip" aria-pressed="false">Dim light</button>
+    <span class="gap"></span>
+    <button class="btn" id="saveBtn" disabled>Save reading</button>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tablewrap">
+    <table>
+      <thead><tr class="micro"><th>Condition</th><th>Webcam bpm</th><th>Quality</th><th>Your count bpm</th><th>Error</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+  <p class="empty" id="emptyRows">No readings yet. Start the camera above, then save one.</p>
+  <div class="tools"><button class="textbtn" id="copyBtn">Copy results</button><button class="textbtn" id="clearBtn">Clear all</button></div>
+</section>
+
+<section id="how">
+  <div class="sec-head">
+    <span class="sec-num">/02</span>
+    <h2>How it<span class="serif">works</span></h2>
+  </div>
+  <ol class="steps">
+    <li><div><h3>Average the forehead</h3><p>Every frame, the page averages the red, green and blue values inside the forehead box. Blood volume changes with each heartbeat and shifts skin color by a fraction of a percent.</p></div></li>
+    <li><div><h3>Separate pulse from light</h3><p>The color traces are resampled to 30 samples per second and combined with the POS algorithm (Wang et al., 2017), which keeps the pulse and cancels most brightness changes.</p></div></li>
+    <li><div><h3>Find the beat</h3><p>The signal is filtered and its spectrum searched between 42 and 210 beats per minute. The strongest peak becomes the heart rate.</p></div></li>
+    <li><div><h3>Score the trust</h3><p>Three checks feed a 0–100 score: how clearly the pulse peak stands out from noise, how still the forehead is, and whether the light is too dark or overexposed.</p></div></li>
+    <li><div><h3>Refuse to bluff</h3><p>Below 40, the number is crossed out. A confident wrong reading is worse than no reading.</p></div></li>
+  </ol>
+</section>
+
+<section class="log" id="log">
+  <div class="sec-head">
+    <span class="sec-num">/03</span>
+    <h2>The build<span class="serif">log</span></h2>
+  </div>
+  <div class="prose">
+    <p class="lead">Teaching a webcam to say when it’s wrong.</p>
+    <p>In my Learn article, <a href="https://medium.com/@aida.valiyeva2017/whats-stopping-your-webcam-from-becoming-a-health-sensor-d11c61aa8964">“What’s stopping your webcam from becoming a health sensor?”</a>, I looked at why rPPG still isn’t trusted outside the lab. The pulse signal hiding in your skin is tiny, and movement, bad lighting and video compression can bury it completely. Yet most rPPG demos show a heart rate no matter how bad the video is. That felt like the real gap to me: a wrong number that looks confident is more dangerous than no number at all.</p>
+    <p>So for my build, I made a browser-based pulse check that does two things. It estimates heart rate from the forehead using the POS algorithm, and it gives every reading a quality score from 0 to 100 based on pulse strength, movement and lighting. When the score drops, it tells you why.</p>
+    <h3>How I tested it</h3>
+    <p>I don’t own a smartwatch, so I used the oldest heart-rate sensor there is: two fingers on my wrist. While the camera ran, I counted my pulse for 30 seconds, doubled it, and compared that to the webcam’s reading. I tested four conditions: sitting still, talking, moving my head and dim light. Across all of them, the webcam stayed within about 2–3 bpm of my own count.</p>
+    <h3>What I learned</h3>
+    <p>The surprise wasn’t the heart rate, it was the trust score. Even when the webcam matched my count, my sitting-still readings only scored between 47 and 55, in the “use with caution” zone, because the pulse signal from my forehead was weak. So right now the score is too careful: it doubts readings that turn out to be correct. The heart rate itself also moved between 60 and 70 bpm across takes while I sat still, which shows how small and noisy this signal really is. My reference wasn’t perfect either, since missing a single beat in a 30-second count shifts the result by 2 bpm.</p>
+    <h3>Why this matters for Hemio</h3>
+    <p>Hemio is built on health data people can trust. Before a camera-based measurement can ever sit next to a blood test result, it has to know when it’s unreliable. This quality layer is my first piece of the rPPG data pipeline I want to build into the Hemio app.</p>
+    <h3>What’s next</h3>
+    <p>Calibrate the quality score so it matches the real error instead of being overly cautious, repeat the test with a clip-on pulse oximeter as a more precise reference, replace the fixed forehead box with face tracking, and test across more skin tones and lighting setups.</p>
+    <p class="disclaimer">This is a research prototype, not a medical device. Don’t use it to make health decisions.</p>
+  </div>
+</section>
+
+<footer>
+  <span class="sig">Aida<span class="serif">Valiyeva</span></span>
+  <span class="micro"><a href="https://aidavaliyeva.site">aidavaliyeva.site</a><br>TKS 2026</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script>
+(function(){
+  const FS=30, WINDOW=10, MIN_SPAN=6, SIDE=120;
+  const ROI={x:0.37,y:0.17,w:0.26,h:0.11};
+  const $=id=>document.getElementById(id);
+  const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const video=$('cam');
+  const roiEl=$('roi');
+  roiEl.style.left=(ROI.x*100)+'%'; roiEl.style.top=(ROI.y*100)+'%';
+  roiEl.style.width=(ROI.w*100)+'%'; roiEl.style.height=(ROI.h*100)+'%';
+
+
+  const grab=document.createElement('canvas'); grab.width=160; grab.height=120;
+  const gctx=grab.getContext('2d',{willReadFrequently:true});
+  let samples=[], prevGray=null, running=false, stream=null, timer=null, smoothBpm=null, last=null, liveSig=null;
+
+  function sample(){
+    if(!running) return;
+    try{
+      const s=video.videoWidth;
+      if(s){
+        gctx.drawImage(video,0,0,160,120);
+        const rx=Math.round(ROI.x*160), ry=Math.round(ROI.y*120), rw=Math.round(ROI.w*160), rh=Math.round(ROI.h*120);
+        const d=gctx.getImageData(rx,ry,rw,rh).data, n=rw*rh, gray=new Float32Array(n);
+        let r=0,g=0,b=0;
+        for(let i=0,j=0;i<d.length;i+=4,j++){r+=d[i];g+=d[i+1];b+=d[i+2];gray[j]=(d[i]+d[i+1]+d[i+2])/3;}
+        r/=n; g/=n; b/=n;
+        let motion=null;
+        if(prevGray){motion=0;for(let j=0;j<n;j++)motion+=Math.abs(gray[j]-prevGray[j]);motion/=n;}
+        prevGray=gray;
+        const t=performance.now()/1000;
+        samples.push({t,r,g,b,lum:(r+g+b)/3,motion});
+        while(samples.length && samples[0].t<t-WINDOW) samples.shift();
+      }
+    }catch(e){}
+    schedule();
+  }
+  function schedule(){
+    if('requestVideoFrameCallback' in HTMLVideoElement.prototype) video.requestVideoFrameCallback(sample);
+    else requestAnimationFrame(sample);
+  }
+
+  const mean=a=>{let s=0;for(const v of a)s+=v;return s/a.length;};
+  const std=a=>{const m=mean(a);let s=0;for(const v of a)s+=(v-m)*(v-m);return Math.sqrt(s/a.length);};
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+
+  function pos(R,G,B,l){
+    const N=R.length, H=new Float64Array(N);
+    for(let n=0;n+l<=N;n++){
+      let mr=0,mg=0,mb=0;
+      for(let i=n;i<n+l;i++){mr+=R[i];mg+=G[i];mb+=B[i];}
+      mr/=l; mg/=l; mb/=l;
+      const s1=new Float64Array(l), s2=new Float64Array(l);
+      for(let i=0;i<l;i++){const r=R[n+i]/mr,g=G[n+i]/mg,b=B[n+i]/mb; s1[i]=g-b; s2[i]=g+b-2*r;}
+      const a=std(s1)/(std(s2)||1e-9);
+      const h=new Float64Array(l); let m=0;
+      for(let i=0;i<l;i++){h[i]=s1[i]+a*s2[i]; m+=h[i];}
+      m/=l;
+      for(let i=0;i<l;i++) H[n+i]+=h[i]-m;
+    }
+    return H;
+  }
+  function filter(x){
+    const N=x.length, w=FS, out=new Float64Array(N);
+    for(let i=0;i<N;i++){let s=0,c=0;for(let j=Math.max(0,i-w/2);j<Math.min(N,i+w/2);j++){s+=x[j];c++;}out[i]=x[i]-s/c;}
+    const sm=new Float64Array(N);
+    for(let i=0;i<N;i++) sm[i]=(out[Math.max(0,i-1)]+out[i]+out[Math.min(N-1,i+1)])/3;
+    return sm;
+  }
+  function spectrum(x){
+    const N=x.length, xs=new Float64Array(N);
+    for(let i=0;i<N;i++) xs[i]=x[i]*(0.5-0.5*Math.cos(2*Math.PI*i/(N-1)));
+    const freqs=[], pw=[];
+    for(let f=0.6;f<=4.5;f+=0.01){let re=0,im=0;for(let i=0;i<N;i++){const ph=2*Math.PI*f*i/FS;re+=xs[i]*Math.cos(ph);im-=xs[i]*Math.sin(ph);}freqs.push(f);pw.push(re*re+im*im);}
+    let best=-1,bf=0;
+    for(let k=0;k<freqs.length;k++) if(freqs[k]>=0.7&&freqs[k]<=3.5&&pw[k]>best){best=pw[k];bf=freqs[k];}
+    let sig=0,noise=0;
+    for(let k=0;k<freqs.length;k++){const f=freqs[k]; if(Math.abs(f-bf)<=0.1||Math.abs(f-2*bf)<=0.2) sig+=pw[k]; else noise+=pw[k];}
+    return {bpm:bf*60, snr:10*Math.log10(sig/(noise||1e-12))};
+  }
+
+  function analyze(){
+    if(samples.length<3) return;
+    const span=samples[samples.length-1].t-samples[0].t;
+    if(span<MIN_SPAN){ $('progress').textContent='Collecting signal, '+Math.max(0,Math.ceil(MIN_SPAN-span))+' s left. Hold still.'; return; }
+    $('progress').textContent='Live, last '+Math.round(span)+' seconds of video';
+    const t0=samples[0].t, N=Math.floor(span*FS);
+    const R=new Float64Array(N),G=new Float64Array(N),B=new Float64Array(N);
+    let k=0;
+    for(let i=0;i<N;i++){
+      const t=t0+i/FS;
+      while(k<samples.length-2 && samples[k+1].t<t) k++;
+      const a=samples[k], c=samples[k+1], f=c.t===a.t?0:clamp((t-a.t)/(c.t-a.t),0,1);
+      R[i]=a.r+(c.r-a.r)*f; G[i]=a.g+(c.g-a.g)*f; B[i]=a.b+(c.b-a.b)*f;
+    }
+    const sig=filter(pos(R,G,B,Math.round(1.6*FS)));
+    const {bpm,snr}=spectrum(sig);
+    const recent=samples.filter(s=>s.t>samples[samples.length-1].t-2);
+    const mots=recent.map(s=>s.motion).filter(v=>v!==null);
+    const motion=mots.length?mean(mots):0, lum=mean(recent.map(s=>s.lum));
+    const sS=clamp((snr+6)/10,0,1), sM=clamp(1-(motion-2.5)/8,0,1);
+    const sL=lum<50?clamp((lum-25)/25,0,1):lum>220?clamp((245-lum)/25,0,1):1;
+    const score=Math.round(100*(0.55*sS+0.3*sM+0.15*sL));
+    if(score>=40) smoothBpm=smoothBpm===null?bpm:smoothBpm*0.7+bpm*0.3;
+    const shown=score>=40?smoothBpm:bpm;
+    last={bpm:Math.round(shown),score};
+    liveSig=Array.from(sig.slice(Math.max(0,sig.length-6*FS)));
+    render(shown,score,sS,sM,sL,lum);
+  }
+
+  const bpmObj={v:0};
+  function render(bpm,score,sS,sM,sL,lum){
+    const color=score>=70?'var(--lime)':score>=40?'var(--warn)':'var(--bad)';
+    const el=$('bpm'); el.classList.remove('waiting'); if(window.gsap&&!reduce){ gsap.to(bpmObj,{v:Math.round(bpm),duration:.45,ease:'power2.out',overwrite:true,onUpdate:()=>{el.textContent=Math.round(bpmObj.v);}}); } else el.textContent=Math.round(bpm); el.classList.toggle('untrusted',score<40);
+    $('status').textContent=score>=70?'Reading looks trustworthy':score>=40?'Use with caution':'Don’t trust this reading';
+    $('status').style.color=color;
+    $('score').textContent=score; $('score').style.color=color;
+    const q=$('qfill'); q.style.width=score+'%'; q.style.background=color;
+    const reasons=[];
+    if(sM<0.6) reasons.push('Too much movement. Hold still and stop talking for a moment.');
+    if(sL<0.7) reasons.push(lum<50?'Too dark. Face a window or lamp.':'Too bright. Your forehead is overexposed.');
+    if(sS<0.5) reasons.push('Weak pulse. Move closer so your forehead fills the box.');
+    if(!reasons.length) reasons.push('Signal looks clean.');
+    $('reasons').innerHTML=reasons.map(r=>'<li>'+r+'</li>').join('');
+    $('pSnr').textContent=Math.round(sS*100); $('pMot').textContent=Math.round(sM*100); $('pLum').textContent=Math.round(sL*100);
+    $('saveBtn').disabled=false;
+  }
+
+
+  async function start(){
+    $('err').hidden=true;
+    try{ stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false}); }
+    catch(e){ $('err').hidden=false; $('err').innerHTML='The camera can’t start in this view. Open the live demo at <a href="https://rppg-pulse-check.vercel.app" target="_blank" rel="noopener">rppg-pulse-check.vercel.app</a>, or allow camera access in your browser’s site settings and try again.'; return; }
+    video.srcObject=stream; await video.play().catch(()=>{});
+    $('idle').hidden=true; $('guides').hidden=false;
+    if(window.gsap&&!reduce){ gsap.from(video,{opacity:0,duration:.9,ease:'power2.out'}); gsap.from('#guides',{opacity:0,duration:.8,delay:.35}); gsap.from('#camState',{scale:.6,opacity:0,duration:.5,ease:'back.out(2)'}); }
+    if(video.videoWidth&&video.videoHeight) $('frame').style.aspectRatio=video.videoWidth+'/'+video.videoHeight;
+    $('camState').textContent='Live'; $('camState').classList.add('live');
+    samples=[]; prevGray=null; smoothBpm=null; liveSig=null; running=true;
+    $('startBtn').disabled=true; $('stopBtn').disabled=false;
+    schedule(); timer=setInterval(analyze,500);
+  }
+  function stop(){
+    running=false; clearInterval(timer);
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    stream=null; video.srcObject=null; liveSig=null;
+    $('idle').hidden=false; $('guides').hidden=true; $('startBtn').disabled=false; $('stopBtn').disabled=true;
+    $('camState').textContent='Off'; $('camState').classList.remove('live');
+    $('progress').textContent='Camera stopped. Saved readings are kept below.';
+  }
+  $('startBtn').addEventListener('click',start);
+  $('stopBtn').addEventListener('click',stop);
+
+  // condition chips
+  let cond='Sitting still';
+  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
+    document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
+    c.setAttribute('aria-pressed','true'); cond=c.textContent;
+  }));
+
+  // results
+  const CONDS=['Sitting still','Talking','Moving head','Dim light'];
+  let rows=[];
+  try{ rows=JSON.parse(localStorage.getItem('rppg-rows')||'[]'); }catch(e){ rows=[]; }
+  const persist=()=>{ try{ localStorage.setItem('rppg-rows',JSON.stringify(rows)); }catch(e){} };
+  const hasWatch=r=>r.watch!==''&&!isNaN(+r.watch);
+  function avgFor(c){const d=rows.filter(r=>r.cond===c&&hasWatch(r)); return d.length?d.reduce((s,r)=>s+Math.abs(r.bpm-(+r.watch)),0)/d.length:null;}
+  function drawRows(){
+    const tb=$('rows'); tb.innerHTML='';
+    rows.forEach((r,i)=>{
+      const err=hasWatch(r)?Math.abs(r.bpm-(+r.watch)):null;
+      const tr=document.createElement('tr');
+      tr.innerHTML='<td>'+r.cond+'</td><td>'+r.bpm+'</td><td>'+r.score+'</td><td><input type="number" inputmode="numeric" placeholder="type" aria-label="Watch bpm, row '+(i+1)+'" value="'+r.watch+'"></td><td>'+(err===null?'–':err+' bpm')+'</td>';
+      tr.querySelector('input').addEventListener('change',e=>{rows[i].watch=e.target.value;persist();drawRows();});
+      tb.appendChild(tr);
+    });
+    $('emptyRows').hidden=rows.length>0;
+    $('stats').innerHTML=CONDS.map(c=>{const a=avgFor(c);return '<div><span class="micro">'+c+'<br>average error</span><strong>'+(a===null?'<span class="none">0.0</span>':a.toFixed(1)+'<small>bpm</small>')+'</strong></div>';}).join('');
+  }
+  $('saveBtn').addEventListener('click',()=>{ if(!last) return; rows.push({cond,bpm:last.bpm,score:last.score,watch:''}); persist(); drawRows();
+    if(window.gsap&&!reduce){ const tr=$('rows').lastElementChild; gsap.from(tr,{backgroundColor:'rgba(218,245,107,.22)',duration:1.4,ease:'power2.out'}); gsap.from(tr.children,{y:10,opacity:0,stagger:.05,duration:.45,ease:'power2.out'}); gsap.fromTo('#saveBtn',{scale:.94},{scale:1,duration:.5,ease:'back.out(3)'}); } });
+  $('clearBtn').addEventListener('click',()=>{ rows=[]; persist(); drawRows(); });
+  $('copyBtn').addEventListener('click',async()=>{
+    const txt='Condition\tWebcam bpm\tQuality\tWatch bpm\tError\n'+rows.map(r=>[r.cond,r.bpm,r.score,r.watch,hasWatch(r)?Math.abs(r.bpm-(+r.watch)):''].join('\t')).join('\n')
+      +'\n\nAverage error\n'+CONDS.map(c=>{const a=avgFor(c);return c+'\t'+(a===null?'–':a.toFixed(1)+' bpm');}).join('\n');
+    const b=$('copyBtn');
+    try{ await navigator.clipboard.writeText(txt); b.textContent='Copied'; }catch(e){ b.textContent='Copy blocked here'; }
+    setTimeout(()=>{b.textContent='Copy results';},1800);
+  });
+  drawRows();
+})();
+</script>
+<script>
+(function(){
+  if(!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if(window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
+  const ST=!!window.ScrollTrigger;
+  const onScroll=(trigger,start)=>ST?{scrollTrigger:{trigger,start:start||'top 85%'}}:{};
+
+  // split the big title into letters
+  const h1=document.querySelector('.title h1');
+  const txt=h1.textContent; h1.setAttribute('aria-label',txt);
+  h1.innerHTML=txt.split('').map(c=>'<span class="ch" aria-hidden="true" style="display:inline-block">'+(c===' '?'&nbsp;':c)+'</span>').join('');
+
+  // hero intro
+  gsap.timeline({defaults:{ease:'power3.out'}})
+    .from('.topbar .who > *, nav .pill',{y:-14,opacity:0,duration:.7,stagger:.06})
+    .from('.intro > *',{y:24,opacity:0,duration:.8,stagger:.08},'-=.45')
+    .from('.cam',{y:34,opacity:0,duration:1.1},'-=.75')
+    .from('.readout > *',{y:20,opacity:0,duration:.7,stagger:.06},'-=.85')
+    .from('.title',{opacity:0,duration:.4},'-=.5')
+    .from('.title .ch',{yPercent:70,opacity:0,duration:1,stagger:.035,ease:'expo.out'},'-=.25')
+    .from('.title .meta > *, .title .sub > *',{y:12,opacity:0,duration:.6,stagger:.06},'-=.8');
+
+  // gentle parallax as you scroll away from the hero
+  if(ST){
+    gsap.to('.title h1',{yPercent:-14,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:true}});
+    gsap.to('.frame',{y:-36,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:true}});
+  }
+
+  // section headings: sans line rises, serif line slides in
+  document.querySelectorAll('.sec-head').forEach(sh=>{
+    const t=gsap.timeline(onScroll(sh,'top 80%'));
+    t.from(sh.querySelector('.sec-num'),{x:-20,opacity:0,duration:.6,ease:'power3.out'})
+     .from(sh.querySelector('h2'),{y:50,opacity:0,duration:.9,ease:'power4.out'},'-=.4')
+     .from(sh.querySelector('h2 .serif'),{x:-48,opacity:0,duration:1.1,ease:'power3.out'},'-=.65');
+    const p=sh.querySelector('p'); if(p) t.from(p,{y:16,opacity:0,duration:.6,ease:'power2.out'},'-=.6');
+  });
+
+  // test section
+  gsap.from('.picker > *',Object.assign({y:16,opacity:0,duration:.5,stagger:.06,ease:'power2.out'},onScroll('.picker')));
+  gsap.from('#stats > div',Object.assign({y:28,opacity:0,duration:.75,stagger:.09,ease:'power3.out'},onScroll('#stats')));
+  gsap.from('.test thead, #emptyRows, .tools',Object.assign({opacity:0,y:10,duration:.6,stagger:.08},onScroll('.tablewrap','top 90%')));
+
+  // how it works steps
+  gsap.utils.toArray('.steps li').forEach(li=>gsap.from(li,Object.assign({y:32,opacity:0,duration:.8,ease:'power3.out'},onScroll(li,'top 88%'))));
+
+  // build log
+  gsap.utils.toArray('.prose > *').forEach(el=>gsap.from(el,Object.assign({y:20,opacity:0,duration:.7,ease:'power2.out'},onScroll(el,'top 90%'))));
+
+  // footer name
+  const ft=gsap.timeline(onScroll('footer','top 92%'));
+  ft.from('footer .sig',{y:40,opacity:0,duration:.9,ease:'power4.out'})
+    .from('footer .sig .serif',{x:-48,opacity:0,duration:1,ease:'power3.out'},'-=.6')
+    .from('footer > .micro',{opacity:0,duration:.6},'-=.5');
+
+  // buttons respond to the pointer
+  document.querySelectorAll('.btn, .chip').forEach(b=>{
+    b.addEventListener('mouseenter',()=>{ if(!b.disabled) gsap.to(b,{scale:1.04,duration:.25,ease:'power2.out'}); });
+    b.addEventListener('mouseleave',()=>gsap.to(b,{scale:1,duration:.3,ease:'power2.out'}));
+  });
+  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>gsap.fromTo(c,{scale:.92},{scale:1,duration:.45,ease:'back.out(3)'})));
+
+  if(ST) window.addEventListener('load',()=>ScrollTrigger.refresh());
+})();
+</script>
+</body>
+</html>
