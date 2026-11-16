@@ -21,6 +21,7 @@ Everything lives in `index.html` (HTML, CSS and JS inline; GSAP 3.12.5 + ScrollT
 
 - All processing stays on device. Never upload video or frames.
 - It is a wellness/research prototype, not a medical device. Keep the disclaimer.
+- Never label a heart rate as healthy or unhealthy.
 - Camera needs https or localhost. Test locally with `python3 -m http.server 8000` and open http://localhost:8000.
 - Keep the visual identity: dark green-black, lime `#DAF56B`, Archivo sans with Newsreader italic accents, minimal boxes, GSAP motion that respects `prefers-reduced-motion`.
 - User-facing copy: plain and natural, no em dashes, no generic AI phrasing, no "not X but Y" sentences.
@@ -42,3 +43,34 @@ Everything lives in `index.html` (HTML, CSS and JS inline; GSAP 3.12.5 + ScrollT
 5. **Face tracking** so the forehead box follows the face (e.g. MediaPipe Face Landmarker, self-hosted model files).
 6. **Cleanup.** Rename leftover "Watch bpm" labels to "Your count" (table aria-label, copy-results header). Consider splitting into `index.html`, `styles.css`, `app.js` once stable.
 7. **Ship V2.** Push to GitHub, connect the repo to Vercel for automatic deploys, update the build log on the page with V2 changes.
+
+## V2 plan (three phases, Nov 16)
+
+Goal: turn Pulse Check into a polished V2. Work one phase at a time, show the plan for a phase before writing code, and commit after each item Aida approves.
+
+This plan replaces the order of the V2 roadmap above. Roadmap 1 (camera preview) is done. Roadmap 2 (stable readings) is not: the first attempt (a median stabilizer) still jumped between 78 and 86 bpm while sitting still, so it gets finished together with face tracking in Phase 1 item 1, since the box sitting on the hairline is likely part of the problem. Roadmap 3 (guidance) is mostly covered by Phase 1 item 2, roadmap 4 (trust score) by item 3, and roadmap 5 (face tracking) by item 1. Roadmap 6 and 7 still apply.
+
+### Phase 1: Structure and logic (correct data, easy to use)
+
+1. **Forehead box placement.** In Aida's test the box sat on her hairline, pulse strength was 9 and quality stuck around 50. Add face tracking (MediaPipe Face Landmarker, model files self-hosted in the repo) so the measurement area follows the forehead, and add both cheeks as extra areas. Fall back to the fixed box if tracking fails.
+2. **Clear measurement flow.** Replace the endlessly changing number with states the user understands: Ready, Positioning (live hints: move closer, more light, hold still), Measuring (30 second progress ring), Result (final BPM, trust score, and why). Add a "Measure again" button.
+3. **Accuracy and trust.** Recalibrate the trust score so steady, correct readings land in the trusted zone. Keep the honest "use with caution" states.
+4. **Button states.** Start and Stop must clearly show which is active. Right now Start looks disabled while the camera runs.
+5. **Phones and browsers.** Check it works on phone screens and in Safari and Chrome.
+
+### Phase 2: Design (layout, graphics, fonts, colors)
+
+Show Aida 2 design directions (screenshots or descriptions) before applying one.
+
+1. **Better layout.** On smaller screens the camera, number and button are far apart. Put the live BPM and status next to or on top of the camera so everything important is visible at once.
+2. **Clear type hierarchy.** Keep Archivo plus Newsreader italic accents, but use fewer label styles and make the main number and result the focus.
+3. **Color.** Keep dark green-black and lime `#DAF56B`, and define clear colors for trusted, caution and not trusted.
+4. **Shareable result card.** A result card the user can save as an image to share.
+
+### Phase 3: Fun and unique
+
+1. **Hear your heartbeat.** A soft, generated beat sound (Web Audio, no copyrighted music) in sync with the detected pulse, with a mute toggle. A subtle visual pulse on screen at the same rhythm.
+2. **Calm challenge.** A 60 second breathing guide where the goal is to lower your heart rate. Show start BPM vs end BPM.
+3. **Under the hood view.** A toggle that shows the live forehead color signal, the cleaned pulse wave, and the frequency spectrum with the peak marked, each with one plain sentence explaining that step.
+
+Never label a heart rate as healthy or unhealthy. It is a wellness prototype, not a medical device.
