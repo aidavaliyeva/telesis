@@ -7,14 +7,14 @@ Webcam heart-rate prototype (rPPG) with a built-in trust score. Built by Aida Va
 
 ## How it works (current V1)
 
-Everything lives in `index.html` (HTML, CSS and JS inline; GSAP 3.12.5 + ScrollTrigger from cdnjs; Google Fonts Archivo + Newsreader).
+App code lives in `index.html` (HTML, CSS and JS inline; GSAP 3.12.5 + ScrollTrigger from cdnjs; Google Fonts Archivo + Newsreader). Face tracking uses MediaPipe Face Landmarker, self-hosted: `vendor/mediapipe/tasks-vision-1.1.1/` (npm `@mediapipe/tasks-vision@1.1.1`, Apache-2.0; only `vision_bundle.mjs` and the SIMD wasm pair) and `models/face_landmarker.task` (float16 v1 from Google's mediapipe-models bucket). Loaded only after Start camera.
 
-1. `getUserMedia` webcam, each frame drawn to a 160x120 canvas.
-2. Mean RGB of a fixed forehead ROI (`ROI` constant), plus frame-to-frame pixel difference (motion) and luminance.
-3. Last 10 s resampled to 30 Hz, POS algorithm (Wang et al. 2017, window 1.6 s), detrend + light smoothing.
-4. Hann-windowed DFT over 0.6 to 4.5 Hz; peak in 0.7 to 3.5 Hz = heart rate. SNR = power near peak and 2nd harmonic vs rest.
+1. `getUserMedia` webcam, each frame drawn to a 320-wide canvas (height follows the video's aspect ratio).
+2. Face tracking runs about 15 times a second. Three skin areas (`AREAS`: forehead strip between brows and mid-forehead, both cheeks) are built from face-mesh points, smoothed, and drawn on the video. Mean RGB per area each frame. Motion = head speed in face widths per second. If tracking fails to load or no face is seen for 1 s, it falls back to the fixed forehead box (`ROI`) with pixel-difference motion; switching modes clears the signal buffer.
+3. Last 12 s resampled to 30 Hz, POS algorithm (Wang et al. 2017, window 1.6 s), detrend + light smoothing, per area.
+4. Hann-windowed DFT over 0.6 to 4.5 Hz per area. Spectra are normalized and combined, weighted by each area's own peak power fraction squared. Peak in 0.7 to 3.5 Hz of the combined spectrum = heart rate. SNR = power near peak and 2nd harmonic vs rest. The combined pulse wave is kept in `liveSig` for Phase 3.
 5. Trust score = 0.55 * pulse(SNR) + 0.3 * stillness + 0.15 * light. Below 40 the BPM is crossed out.
-6. `analyze()` runs every 500 ms. Displayed BPM uses an EMA (0.7 old / 0.3 new) when score >= 40.
+6. `analyze()` runs every 500 ms. `stabilize()` turns the raw estimates into the displayed BPM: median of the last 7 estimates with score >= 40 (max 5 s old), "Settling" until 5 of 7 agree within 4 bpm, then the number updates once per second, ignores changes under 1.5 bpm, moves at most 1 bpm per step, and accepts jumps over 12 bpm only after 3 s in a row.
 7. Test section: user saves readings and types a reference BPM (manual pulse count); stored in localStorage key `rppg-rows`.
 
 ## Rules
@@ -22,6 +22,7 @@ Everything lives in `index.html` (HTML, CSS and JS inline; GSAP 3.12.5 + ScrollT
 - All processing stays on device. Never upload video or frames.
 - It is a wellness/research prototype, not a medical device. Keep the disclaimer.
 - Never label a heart rate as healthy or unhealthy.
+- Keep the `Content-Security-Policy: connect-src 'self' blob: data:` meta tag. MediaPipe posts usage stats to odml.pa.googleapis.com every 60 s; the CSP blocks it so nothing leaves the device.
 - Camera needs https or localhost. Test locally with `python3 -m http.server 8000` and open http://localhost:8000.
 - Keep the visual identity: dark green-black, lime `#DAF56B`, Archivo sans with Newsreader italic accents, minimal boxes, GSAP motion that respects `prefers-reduced-motion`.
 - User-facing copy: plain and natural, no em dashes, no generic AI phrasing, no "not X but Y" sentences.

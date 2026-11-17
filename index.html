@@ -2,17 +2,43 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<!-- Only allow network requests back to this site. MediaPipe otherwise posts usage stats to Google. -->
+<meta http-equiv="Content-Security-Policy" content="connect-src 'self' blob: data:">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Pulse check: a webcam rPPG build by Aida Valiyeva</title>
+<title>Telesis: operator-state sensing for teleoperation</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,62..125,100..900;1,62..125,100..900&family=Newsreader:ital,opsz,wght@1,6..72,400..700&display=swap" rel="stylesheet">
+<script>
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.documentElement.classList.add('motion');
+    setTimeout(()=>document.documentElement.classList.remove('motion'),4000);
+  }
+</script>
 <style>
+.motion .topbar,.motion .intro,.motion .cam,.motion .readout,.motion .title{visibility:hidden}
 :root{
-  --night:#0D1210; --hero-light:#3C5446; --night-2:#121916; --lime:#DAF56B; --lime-ink:#0D1210;
-  --on-night:#EEF2EF; --mist:#8E9A93; --rule:rgba(218,245,107,.22); --rule-soft:rgba(238,242,239,.12);
-  --paper:#E7EBE8; --paper-ink:#121715; --paper-mist:#5D6862; --paper-rule:rgba(18,23,21,.16);
-  --warn:#F4B74A; --bad:#FF6F5E;
+  /* Palette: tune colors here. */
+  --ease-out:cubic-bezier(.22,.61,.36,1); /* matches GSAP power3.out, used for hover transitions */
+  --bg:#141518;          /* deep neutral graphite, page background */
+  --surface:#1C1E22;     /* slightly lifted panels */
+  --text:#F0EEEA;        /* warm off-white, primary text */
+  --text-muted:#A3A19C;  /* warm gray, labels and secondary text */
+  --line:#2A2C31;        /* hairlines, dividers, table rules */
+  --accent:#C2956A;      /* warm tan-brown, the highlight color */
+  --accent-deep:#8A6038; /* darker brown for solid fills and hover */
+  --on-accent:#141518;   /* text on an accent-filled element */
+  --rule:rgba(194,149,106,.28); /* accent-tinted rule under table headers */
+  --hero-light:#2E2B27;  /* top of the hero gradient */
+  /* Status meaning only (operator verdict, bpm range, signal meters). Never use --accent for status. */
+  --good:#7FD957;        /* green: Ready range, good signal */
+  --warn:#E0B341;        /* yellow: Caution range, fair signal */
+  --bad:#E06B5E;         /* light red: Not recommended range, poor signal */
+  /* Camera overlays: must read over live video. */
+  --cue:#E8C9A0;         /* in position, measured skin areas */
+  --cue-off:rgba(163,161,156,.5); /* not in position */
+  /* Build log section (light in light mode). */
+  --paper:#ECE9E4; --paper-ink:#141518; --paper-mist:#66635E; --paper-rule:rgba(20,21,24,.16); --paper-link:#8A6038;
   color-scheme:light;
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
@@ -20,30 +46,34 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --paper:#171E1B; --paper-ink:#E9EEEA; --paper-mist:#97A39C; --paper-rule:rgba(233,238,234,.14);
+    --paper:#1C1E22; --paper-ink:#F0EEEA; --paper-mist:#A3A19C; --paper-rule:rgba(240,238,234,.14); --paper-link:#C2956A;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --paper:#171E1B; --paper-ink:#E9EEEA; --paper-mist:#97A39C; --paper-rule:rgba(233,238,234,.14);
+  --paper:#1C1E22; --paper-ink:#F0EEEA; --paper-mist:#A3A19C; --paper-rule:rgba(240,238,234,.14); --paper-link:#C2956A;
   color-scheme:dark;
 }
 html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
 @media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
 *,*::before,*::after{box-sizing:inherit}
 [hidden]{display:none !important}
-body{margin:0;background:var(--night);color:var(--on-night);
+body{margin:0;background:var(--bg);color:var(--text);
   font-family:Archivo,"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:17px;line-height:1.55;
   -webkit-font-smoothing:antialiased;overflow-x:hidden}
-a{color:inherit}
+a{color:var(--accent);text-underline-offset:3px}
+a:hover{color:var(--text)}
+nav a,a.pill{color:inherit}
+.log a{color:var(--paper-link)}
+.log a:hover{color:var(--paper-ink)}
 .micro{font-size:10.5px;line-height:1.25;font-weight:500;font-stretch:118%;text-transform:uppercase;letter-spacing:.03em}
 .pill{display:inline-flex;align-items:center;gap:8px;border:1px solid currentColor;border-radius:999px;padding:6px 14px;text-decoration:none}
-.pill::before{content:"";width:4px;height:4px;border-radius:50%;background:currentColor}
-:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+.pill::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
 
 /* ---------- hero ---------- */
 .hero{position:relative;min-height:100vh;padding:22px clamp(18px,4vw,56px) 0;isolation:isolate;overflow:hidden;
-  background:linear-gradient(172deg,var(--hero-light) 0%,#1A2520 30%,var(--night) 62%,#060908 100%);background-size:100% 240%;
+  background:linear-gradient(172deg,var(--hero-light) 0%,#1E1F22 30%,var(--bg) 62%,#0C0D0F 100%);background-size:100% 240%;
   animation:shade 16s ease-in-out infinite alternate}
 @keyframes shade{from{background-position:50% 0%}to{background-position:50% 100%}}
 .grain{position:absolute;inset:0;z-index:-1;opacity:.07;pointer-events:none;
@@ -53,72 +83,95 @@ a{color:inherit}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
 .who{display:flex;gap:14px;align-items:center}
 .who b{font-weight:600;font-stretch:100%;font-size:15px;letter-spacing:-.005em}
-.who .micro{color:var(--mist)}
+.who .micro{color:var(--text-muted)}
 nav{display:flex;gap:6px;flex-wrap:wrap}
-nav .pill{font-size:10.5px;font-stretch:118%;text-transform:uppercase;font-weight:500;letter-spacing:.03em;color:var(--on-night);border:0;padding:7px 10px}
-nav .pill:hover{color:var(--lime)}
+nav .pill{font-size:10.5px;font-stretch:118%;text-transform:uppercase;font-weight:500;letter-spacing:.03em;color:var(--text);border:0;padding:7px 10px}
+nav .pill{background:linear-gradient(currentColor,currentColor) no-repeat 22px calc(100% - 3px)/0 1px;transition:color .3s var(--ease-out),background-size .35s var(--ease-out)}
+nav .pill:hover{color:var(--accent);background-size:calc(100% - 32px) 1px}
 
 .stage{display:grid;grid-template-columns:1fr minmax(0,1.5fr) 1fr;align-items:center;gap:clamp(20px,4vw,56px);margin-top:clamp(28px,6vh,64px)}
 @media (max-width:900px){.stage{grid-template-columns:1fr;justify-items:center;text-align:center}}
 
 .intro{max-width:30ch;justify-self:start}
-@media (max-width:900px){.intro{justify-self:center;order:2}}
-.intro .copy{font-size:15px;color:var(--mist);margin:10px 0 22px}
-.intro .copy strong{color:var(--on-night);font-weight:600}
-.tagline{display:flex;gap:10px;align-items:center;color:var(--on-night)}
-@media (max-width:900px){.tagline{justify-content:center}}
-.tagline .pill{padding:3px 10px}
-.btns{display:flex;gap:10px;flex-wrap:wrap}
-@media (max-width:900px){.btns{justify-content:center}}
+@media (max-width:900px){.intro{justify-self:center;order:3}}
+.intro .copy{font-size:15px;color:var(--text-muted);margin:10px 0 22px}
+.intro .copy strong{color:var(--text);font-weight:600}
 .btn{font:inherit;font-size:12px;font-weight:600;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;
-  border-radius:999px;padding:13px 22px;cursor:pointer;border:1px solid var(--lime);background:var(--lime);color:var(--lime-ink)}
-.btn.line{background:transparent;color:var(--on-night);border-color:rgba(238,242,239,.45)}
+  border-radius:999px;padding:13px 22px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--on-accent)}
+.btn{transition:background-color .3s var(--ease-out),border-color .3s var(--ease-out),color .3s var(--ease-out),transform .3s var(--ease-out),box-shadow .3s var(--ease-out)}
+.btn:not(:disabled):hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.32)}
+.btn.line:not(:disabled):hover{background:rgba(240,238,234,.06);border-color:rgba(240,238,234,.75)}
+@media (prefers-reduced-motion: reduce){.btn,nav .pill{transition:none}.btn:not(:disabled):hover{transform:none;box-shadow:none}}
+.btn:not(.line):hover{background:var(--accent-deep);border-color:var(--accent-deep);color:var(--text)}
+.btn.line{background:transparent;color:var(--text);border-color:rgba(240,238,234,.45)}
 .btn:disabled{opacity:.35;cursor:not-allowed}
-.err{color:var(--bad);font-size:14px;margin:14px 0 0}
-.progress{color:var(--mist);margin-top:16px}
+.err{color:var(--bad);font-size:14px;margin:12px 0 0;text-align:center}
+/* under the camera: live status line, then the buttons, centered */
+.camstatus:empty{display:none}
+.camstatus{margin:16px 0 0;text-align:center;font-size:15px;font-weight:600;color:var(--text)}
+.controls{display:flex;justify-content:center;gap:10px;margin-top:16px}
+.controls .btn{flex:0 1 190px;min-width:0;padding-left:12px;padding-right:12px}
 
 /* camera frame */
 .cam{margin:0;width:100%;max-width:540px;justify-self:center}
 @media (max-width:900px){.cam{order:1}}
-.frame{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#06090A;border:1px solid var(--rule)}
+.frame{position:relative;aspect-ratio:4/3;border-radius:14px;overflow:hidden;background:#0C0D0F}
 .frame video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;transform:scaleX(-1);display:block}
 .guides{position:absolute;inset:0;pointer-events:none}
-.oval{position:absolute;left:31%;top:7%;width:38%;height:82%;border:1px dashed rgba(238,242,239,.5);border-radius:50%}
-.roi{position:absolute;border:1.5px solid var(--lime);border-radius:4px}
-.roi .micro{position:absolute;left:50%;top:-18px;transform:translateX(-50%);color:var(--lime);white-space:nowrap}
-.idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:12%;color:var(--mist);background:radial-gradient(circle at 50% 35%,#1B2721,#070B09 80%)}
-.idle span{font-size:40px;color:var(--lime);line-height:1}
-.idle p{margin:0;max-width:30ch;font-size:15px}
-.tag{position:absolute;top:12px;left:12px;color:var(--on-night);background:rgba(13,18,16,.65);padding:5px 11px;border-radius:999px}
-.tag.r{left:auto;right:12px}
-.tag.r.live{background:var(--lime);color:var(--lime-ink)}
-.cam figcaption{color:var(--mist);margin-top:12px;text-align:center}
+.oval{position:absolute;left:31%;top:7%;width:38%;height:82%;border:1.5px dashed var(--cue-off);border-radius:50%;transition:border-color .3s}
+.oval.on{border-color:var(--cue);border-style:solid}
+.guides canvas{position:absolute;inset:0;width:100%;height:100%}
+.idle{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:12%;color:var(--text-muted);background:radial-gradient(circle at 50% 35%,#24262B,#0C0D0F 80%)}
+.idle span{font-size:40px;color:var(--cue);line-height:1}
 
-.readout{justify-self:end;text-align:right;max-width:280px}
-@media (max-width:900px){.readout{justify-self:center;text-align:center;order:3}}
-.readout .micro{color:var(--mist)}
-.bpm{font-size:clamp(6rem,13vw,10.5rem);font-weight:700;font-stretch:72%;line-height:.82;letter-spacing:-.045em;color:var(--lime);font-variant-numeric:tabular-nums;margin:6px 0 2px}
-.bpm.untrusted.waiting{text-decoration:none}
-.bpm.untrusted{color:transparent;-webkit-text-stroke:1.5px var(--mist);text-decoration:line-through;text-decoration-color:var(--bad)}
-.unit{font-size:20px;font-weight:300;font-stretch:125%;letter-spacing:.02em}
-.status{font-size:15px;font-weight:600;margin:14px 0 6px}
-.qbar{height:4px;background:rgba(238,242,239,.14);border-radius:9px;overflow:hidden;margin:10px 0 12px}
-#qfill{height:100%;width:0;background:var(--lime);border-radius:9px;transition:width .4s,background .4s}
-.reasons{list-style:none;padding:0;margin:0;color:var(--mist);font-size:14px}
-.parts{display:flex;gap:18px;justify-content:flex-end;margin-top:16px}
-@media (max-width:900px){.parts{justify-content:center}}
-.parts div{text-align:inherit}
-.parts strong{display:block;font-size:22px;font-weight:600;font-stretch:80%;font-variant-numeric:tabular-nums;color:var(--on-night)}
 
-.title{margin-top:clamp(30px,6vh,70px);border-top:1px solid var(--rule-soft)}
-.title .meta{display:flex;justify-content:space-between;align-items:end;gap:20px;padding:14px 0 6px;color:var(--mist)}
-.title .meta .year{font-size:clamp(2rem,4vw,3.4rem);font-weight:300;font-stretch:90%;color:var(--on-night);letter-spacing:-.03em;line-height:1}
-.title h1{margin:0;font-size:clamp(3.4rem,12vw,11.5rem);line-height:.86;font-weight:650;font-stretch:96%;letter-spacing:-.055em;color:var(--lime);white-space:nowrap}
-.title .sub{display:flex;justify-content:space-between;gap:20px;align-items:center;border-top:1px solid var(--rule-soft);margin-top:10px;padding:14px 0 26px}
-.title .sub .big{font-size:clamp(1.3rem,2.6vw,2.2rem);font-weight:300;font-stretch:110%;letter-spacing:-.02em}
-@media (max-width:620px){.title .meta .hide,.title .sub .micro{display:none}}
+.readout{justify-self:end;text-align:left;width:100%;max-width:300px}
+@media (max-width:900px){.readout{justify-self:center;order:2;max-width:360px}}
+.readout .micro{color:var(--text-muted)}
+/* 1) the reading */
+.bpm{font-size:clamp(6rem,13vw,10.5rem);font-weight:700;font-stretch:72%;line-height:.82;letter-spacing:-.045em;color:var(--text);font-variant-numeric:tabular-nums;margin:6px 0 2px;transition:color .4s}
+.bpm.untrusted.waiting{text-decoration:none;color:rgba(240,238,234,.16);-webkit-text-stroke:0}
+.bpm.untrusted{color:transparent;-webkit-text-stroke:1.5px var(--text-muted);text-decoration:line-through;text-decoration-color:var(--bad)}
+.unit{font-size:20px;font-weight:300;font-stretch:125%;letter-spacing:.02em;color:var(--text-muted)}
+.r-good{color:var(--good) !important} .r-warn{color:var(--warn) !important} .r-bad{color:var(--bad) !important}
+@media (max-width:900px){.bpm,.unit{text-align:center}}
+/* 2) operator verdict: the headline answer */
+.verdict{margin-top:22px}
+.opval{margin:6px 0 6px;font-size:21px;line-height:1.2;font-weight:700;font-stretch:100%;letter-spacing:-.01em}
+.opval.ready{color:var(--good)} .opval.caution{color:var(--warn)} .opval.notrec{color:var(--bad)} .opval.insufficient{color:var(--text-muted);font-size:17px;font-weight:600}
+.opwhy{margin:0 0 6px;font-size:14px;line-height:1.45;color:var(--text-muted)}
+.opnote{margin:0;font-size:11.5px;line-height:1.4;color:var(--text-muted);opacity:.8}
+/* 3) signal reliability: secondary */
+.reliab{margin-top:20px;padding:12px 14px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.reliab>.micro{margin:0 0 10px}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:12px 18px}
+.meter{cursor:help}
+.meter .mrow{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--text-muted)}
+.meter b{font-weight:600;font-size:13px;color:var(--text);font-variant-numeric:tabular-nums}
+.meter .mbar{height:3px;margin-top:5px;border-radius:3px;background:rgba(240,238,234,.1);overflow:hidden}
+.meter .mbar span{display:block;height:100%;width:0;border-radius:3px;background:var(--text-muted)}
+/* 4) provenance */
+.prov{margin:12px 0 0;font-size:12px;color:var(--text-muted)}
+/* 5) manual count */
+.manual{margin-top:18px}
+.manual label{display:block;color:var(--text-muted);margin-bottom:6px}
+.manual input{width:86px;font:inherit;font-size:16px;background:transparent;color:var(--text);border:0;border-bottom:1px solid rgba(240,238,234,.4);padding:2px 0}
+.manual input:focus{outline:none;border-bottom-color:var(--accent)}
+#manualNote{margin-left:12px;font-size:13px;color:var(--text-muted)}
 
-.ticker{background:var(--lime);color:var(--lime-ink);overflow:hidden;white-space:nowrap;padding:11px 0}
+.title{margin-top:clamp(30px,6vh,70px);border-top:1px solid var(--line);padding-bottom:clamp(20px,3vw,34px)}
+/* Wordmark: pure white at the top to darker grey at the bottom, with a slow light sheen sweeping across (paused for reduced motion).
+   Padding gives the clipped gradient room for the letter tops; the negative margin keeps the layout. */
+.title h1{margin:.06em 0 0;padding:.08em .04em .02em 0;font-size:clamp(3.4rem,12vw,11.5rem);line-height:.86;font-weight:500;font-stretch:96%;letter-spacing:-.055em;white-space:nowrap;
+  width:fit-content;color:#FFFFFF;
+  background-image:linear-gradient(100deg,rgba(255,255,255,0) 40%,rgba(255,255,255,.7) 50%,rgba(255,255,255,0) 60%),linear-gradient(180deg,#FFFFFF 0%,#6E6E6E 100%);
+  background-size:250% 100%,100% 100%;background-position:100% 0,0 0;background-repeat:no-repeat;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  animation:sheen 7s ease-in-out infinite}
+@keyframes sheen{0%{background-position:100% 0,0 0}55%,100%{background-position:0% 0,0 0}}
+@media (prefers-reduced-motion: reduce){.title h1{animation:none}}
+
+.ticker{background:var(--accent);color:var(--on-accent);overflow:hidden;white-space:nowrap;padding:11px 0}
 .ticker div{display:inline-block;animation:tick 32s linear infinite;font-size:14px;font-weight:600;font-stretch:120%;text-transform:uppercase;letter-spacing:.02em}
 .ticker span{margin:0 22px}
 @keyframes tick{to{transform:translateX(-50%)}}
@@ -127,49 +180,61 @@ nav .pill:hover{color:var(--lime)}
 /* ---------- sections ---------- */
 section{padding:clamp(70px,11vw,140px) clamp(18px,4vw,56px)}
 .sec-head{display:grid;grid-template-columns:auto 1fr;gap:clamp(16px,3vw,40px);align-items:start;margin-bottom:clamp(36px,6vw,70px)}
-.sec-num{font-size:clamp(1.4rem,2.4vw,2rem);font-weight:300;font-stretch:120%;color:var(--lime);line-height:1.1}
+.sec-num{font-size:clamp(1.4rem,2.4vw,2rem);font-weight:300;font-stretch:120%;color:var(--accent);line-height:1.1}
 .sec-head h2{margin:0;font-weight:650;font-stretch:96%;letter-spacing:-.05em;line-height:.9;font-size:clamp(2.8rem,8vw,7rem)}
 .serif{font-family:Newsreader,"Iowan Old Style",Georgia,serif;font-style:italic;font-weight:600;font-stretch:normal;letter-spacing:-.025em}
-.sec-head h2 .serif{display:block;font-size:1.06em;line-height:.95;color:var(--lime);margin-left:-.03em}
+.sec-head h2 .serif{display:block;font-size:1.06em;line-height:.95;color:var(--accent);margin-left:-.03em}
 .log .sec-head h2 .serif{color:var(--paper-ink)}
 .sec-head h2 .thin{display:block;font-weight:200;font-stretch:125%;letter-spacing:-.04em;font-size:.62em;padding-left:.2em}
 .sec-head h2 .push{display:block;padding-left:clamp(30px,12vw,200px)}
-.sec-head p{max-width:46ch;color:var(--mist);margin:20px 0 0;font-size:16px}
+.sec-head p{max-width:46ch;color:var(--text-muted);margin:20px 0 0;font-size:16px}
+
+/* who it's for: teleoperation photo as a background that fades into the page */
+#why{position:relative;isolation:isolate;overflow:hidden;background:var(--bg);min-height:clamp(560px,62vw,860px)}
+#why::before,#why::after{content:"";position:absolute;top:0;bottom:0;right:0;width:62%;z-index:-1;pointer-events:none}
+#why::before{background:url("who-its-for.jpg") 72% 30%/cover no-repeat}
+/* Fade every edge of the photo into --bg, plus a scrim on the left where the text sits. */
+#why::after{background:
+  linear-gradient(to right,var(--bg) 0%,rgba(20,21,24,.75) 22%,rgba(20,21,24,0) 50%),
+  linear-gradient(to left,var(--bg) 0%,rgba(20,21,24,0) 14%),
+  linear-gradient(to bottom,var(--bg) 0%,rgba(20,21,24,0) 18%),
+  linear-gradient(to top,var(--bg) 0%,rgba(20,21,24,.4) 14%,rgba(20,21,24,0) 34%)}
+#why .sec-head,#why .prose{position:relative;max-width:min(46%,640px)}
+#why .prose{margin-left:0}
+#why .sec-head p,#why .prose{color:var(--text)}
+@media (max-width:900px){
+  /* Narrow screens: photo across the top, text below it on the faded part. */
+  #why{min-height:0;padding-top:calc(62vw + 20px)}
+  #why::before,#why::after{width:100%;bottom:auto;height:calc(75vw + 40px)}
+  #why::before{background-position:60% 20%}
+  #why::after{background:
+    linear-gradient(to top,var(--bg) 0%,rgba(20,21,24,.7) 22%,rgba(20,21,24,0) 55%),
+    linear-gradient(to bottom,var(--bg) 0%,rgba(20,21,24,0) 16%),
+    linear-gradient(to right,var(--bg) 0%,rgba(20,21,24,0) 10%),
+    linear-gradient(to left,var(--bg) 0%,rgba(20,21,24,0) 10%)}
+  #why .sec-head,#why .prose{max-width:none}
+}
 
 /* test */
-.test{background:var(--night-2)}
-.picker{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center}
-.chip{font:inherit;font-size:12px;font-weight:500;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;cursor:pointer;
-  border-radius:999px;padding:9px 16px;background:transparent;color:var(--on-night);border:1px solid rgba(238,242,239,.35)}
-.chip[aria-pressed="true"]{background:var(--on-night);color:var(--night);border-color:var(--on-night)}
-.picker .gap{width:16px}
-.stats{display:grid;grid-template-columns:repeat(4,1fr);margin:48px 0 40px;border-top:1px solid var(--rule)}
-.stats div{padding:16px 16px 0 0;border-right:1px solid var(--rule-soft)}
-.stats div:last-child{border-right:0}
-.stats div+div{padding-left:16px}
-.stats .micro{color:var(--mist)}
-.stats strong{display:block;font-size:clamp(2.6rem,6vw,4.8rem);font-weight:650;font-stretch:72%;letter-spacing:-.04em;line-height:1;color:var(--lime);margin-top:10px;font-variant-numeric:tabular-nums}
-.stats .none{color:transparent;-webkit-text-stroke:1px var(--mist)}
-.stats strong small{font-size:.32em;font-weight:400;font-stretch:115%;color:var(--mist);letter-spacing:0;margin-left:4px}
-@media (max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}.stats div:nth-child(2){border-right:0}.stats div:nth-child(3){padding-left:0}}
+.test{background:var(--surface)}
 .tablewrap{overflow-x:auto}
 table{width:100%;min-width:560px;border-collapse:collapse;font-variant-numeric:tabular-nums}
-th{text-align:left;color:var(--mist);padding:10px 12px 10px 0;border-bottom:1px solid var(--rule)}
-td{padding:14px 12px 14px 0;border-bottom:1px solid var(--rule-soft);font-size:16px}
-td input{width:86px;font:inherit;background:transparent;color:var(--on-night);border:0;border-bottom:1px solid rgba(238,242,239,.4);padding:2px 0}
-td input:focus{outline:none;border-bottom-color:var(--lime)}
-.empty{color:var(--mist);margin:18px 0 0;font-size:15px}
+th{text-align:left;color:var(--text-muted);padding:10px 12px 10px 0;border-bottom:1px solid var(--rule)}
+td{padding:14px 12px 14px 0;border-bottom:1px solid var(--line);font-size:16px}
+td input{width:86px;font:inherit;background:transparent;color:var(--text);border:0;border-bottom:1px solid rgba(240,238,234,.4);padding:2px 0}
+td input:focus{outline:none;border-bottom-color:var(--accent)}
+.empty{color:var(--text-muted);margin:18px 0 0;font-size:15px}
 .tools{display:flex;gap:18px;margin-top:20px}
-.textbtn{font:inherit;font-size:12px;font-weight:500;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;background:none;border:0;color:var(--mist);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:4px}
-.textbtn:hover{color:var(--on-night)}
+.textbtn{font:inherit;font-size:12px;font-weight:500;font-stretch:115%;text-transform:uppercase;letter-spacing:.03em;background:none;border:0;color:var(--text-muted);cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:4px}
+.textbtn:hover{color:var(--text)}
 
 /* how */
 .steps{list-style:none;margin:0;padding:0;counter-reset:s}
-.steps li{display:grid;grid-template-columns:minmax(80px,180px) 1fr;gap:clamp(16px,4vw,60px);padding:26px 0;border-top:1px solid var(--rule-soft);counter-increment:s}
-.steps li:last-child{border-bottom:1px solid var(--rule-soft)}
-.steps li::before{content:"/0" counter(s);font-size:clamp(1.6rem,3vw,2.6rem);font-weight:200;font-stretch:120%;color:var(--lime);line-height:1}
+.steps li{display:grid;grid-template-columns:minmax(80px,180px) 1fr;gap:clamp(16px,4vw,60px);padding:26px 0;border-top:1px solid var(--line);counter-increment:s}
+.steps li:last-child{border-bottom:1px solid var(--line)}
+.steps li::before{content:"/0" counter(s);font-size:clamp(1.6rem,3vw,2.6rem);font-weight:200;font-stretch:120%;color:var(--accent);line-height:1}
 .steps h3{margin:0 0 6px;font-size:clamp(1.3rem,2.4vw,1.9rem);font-weight:650;font-stretch:88%;letter-spacing:-.03em;line-height:1.05}
-.steps p{margin:0;color:var(--mist);max-width:58ch}
+.steps p{margin:0;color:var(--text-muted);max-width:58ch}
 
 /* log */
 .log{background:var(--paper);color:var(--paper-ink)}
@@ -180,12 +245,12 @@ td input:focus{outline:none;border-bottom-color:var(--lime)}
 .prose p{margin:0 0 1.2em}
 .prose h3{font-size:10.5px;font-weight:600;font-stretch:118%;text-transform:uppercase;letter-spacing:.04em;margin:2.2em 0 .6em;color:var(--paper-mist)}
 .prose .lead{font-size:clamp(1.3rem,2.2vw,1.65rem);line-height:1.35;font-weight:400;letter-spacing:-.015em;margin-bottom:1.4em}
-.fill{background:var(--lime);color:var(--lime-ink);padding:1px 6px;border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+.fill{background:var(--accent);color:var(--on-accent);padding:1px 6px;border-radius:3px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
 .disclaimer{margin-top:2.4em;padding-top:16px;border-top:1px solid var(--paper-rule);font-size:14px;color:var(--paper-mist)}
 
-footer{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;padding:40px clamp(18px,4vw,56px) 34px;color:var(--mist)}
-footer .sig{font-size:clamp(2.6rem,7vw,5.2rem);font-weight:700;font-stretch:96%;letter-spacing:-.05em;line-height:.9;color:var(--lime)}
-footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:-.03em}
+footer{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;padding:40px clamp(18px,4vw,56px) 34px;color:var(--text-muted)}
+footer .sig{font-size:clamp(2.6rem,7vw,5.2rem);font-weight:700;font-stretch:96%;letter-spacing:-.05em;line-height:.9;color:var(--accent)}
+footer .sig .serif{display:block;color:var(--accent);font-size:1.06em;margin-left:-.03em}
 </style>
 </head>
 <body>
@@ -194,9 +259,10 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
   <div class="grain" aria-hidden="true"></div>
 
   <div class="topbar">
-    <div class="who"><b>Aida Valiyeva</b><span class="micro" style="white-space:nowrap">TKS rPPG focus, build phase</span></div>
+    <div class="who"><b>Telesis</b><span class="micro" style="white-space:nowrap">TKS rPPG focus, build phase</span></div>
     <nav aria-label="Sections">
       <a class="pill" href="#demo">Demo</a>
+      <a class="pill" href="#why">Who it’s for</a>
       <a class="pill" href="#test">Test</a>
       <a class="pill" href="#how">How it works</a>
       <a class="pill" href="#log">Build log</a>
@@ -205,103 +271,112 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
 
   <div class="stage">
     <div class="intro">
-      <div class="tagline micro"><span>Webcam in,<br>heart rate out</span></div>
-      <p class="copy">Your skin changes color by a fraction of a percent with every heartbeat. This prototype reads that from your forehead, and <strong>tells you when not to trust the number.</strong> Nothing leaves your device.</p>
-      <div class="btns">
-        <button class="btn" id="startBtn">Start camera</button>
-        <button class="btn line" id="stopBtn" disabled>Stop</button>
-      </div>
-      <p class="micro progress" id="progress"></p>
-      <p class="err" id="err" hidden></p>
+      <p class="copy">Before a human takes control of a robot, how do we know they’re physically ready? A tired or distracted operator is a safety risk. This prototype reads heart rate off your face through the camera already in the control loop, with no wearable, and <strong>flags when its own reading can’t be trusted.</strong> Everything runs on your device. Nothing leaves your browser.</p>
     </div>
 
     <figure class="cam">
       <div class="frame" id="frame">
         <video id="cam" playsinline muted></video>
-        <div class="guides" id="guides" hidden><div class="oval"></div><div class="roi" id="roi"><span class="micro">Forehead</span></div></div>
-        <div class="idle" id="idle"><span aria-hidden="true"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10.5l5.2-3a.5.5 0 0 1 .8.4v8.2a.5.5 0 0 1-.8.4l-5.2-3"/><rect x="3" y="6" width="12" height="12" rx="2.5"/></svg></span><p>Face a window or lamp, then fit your face in the oval with your forehead in the box.</p></div>
-        <span class="tag micro">Your camera</span><span class="tag r micro" id="camState">Off</span>
+        <div class="guides" id="guides" hidden><div class="oval"></div><canvas id="overlay"></canvas></div>
+        <div class="idle" id="idle"><span aria-hidden="true"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 10.5l5.2-3a.5.5 0 0 1 .8.4v8.2a.5.5 0 0 1-.8.4l-5.2-3"/><rect x="3" y="6" width="12" height="12" rx="2.5"/></svg></span></div>
       </div>
-      <figcaption class="micro">The pulse is read only from the box on your forehead</figcaption>
+      <p class="camstatus" id="status" role="status"></p>
+      <div class="controls">
+        <button class="btn" id="camBtn">Start camera</button>
+        <button class="btn line" id="againBtn" hidden>Measure again</button>
+      </div>
+      <p class="err" id="err" hidden></p>
     </figure>
 
-    <div class="readout" aria-live="polite">
-      <div class="micro">Heart rate<br>beats per minute</div>
-      <div class="bpm untrusted waiting" id="bpm">00</div>
-      <div class="unit">bpm</div>
-      <p class="status" id="status">Waiting for video</p>
-      <div class="qbar"><div id="qfill"></div></div>
-      <ul class="reasons" id="reasons"><li>The bar shows how much to trust each reading.</li></ul>
-      <div class="parts micro">
-        <div>Quality<strong id="score">–</strong></div>
-        <div>Pulse<strong id="pSnr">–</strong></div>
-        <div>Stillness<strong id="pMot">–</strong></div>
-        <div>Light<strong id="pLum">–</strong></div>
+    <div class="readout">
+      <div class="bpm untrusted waiting" id="bpm" title="Color shows the operator range: green 50 to 90 bpm, yellow 45 to 49 or 91 to 110, red below 45 or above 110.">––</div>
+      <div class="unit" id="unit">bpm</div>
+
+      <div class="verdict" aria-live="polite">
+        <span class="micro">Operator verdict</span>
+        <p class="opval insufficient" id="opVal">No verdict yet</p>
+        <p class="opwhy" id="opWhy">Needs a trustworthy, steady reading first.</p>
+        <p class="opnote">Not a clinical fatigue measure.</p>
+      </div>
+
+      <div class="reliab" role="group" aria-labelledby="reliabTitle">
+        <p class="micro" id="reliabTitle">Signal reliability</p>
+        <div class="meters">
+          <div class="meter" title="The trust score: how reliable the reading is right now, 0 to 100."><div class="mrow"><span>Quality</span><b id="score">–</b></div><div class="mbar"><span id="mScore"></span></div></div>
+          <div class="meter" title="How strong the heartbeat is in the camera signal."><div class="mrow"><span>Signal</span><b id="pSnr">–</b></div><div class="mbar"><span id="mSnr"></span></div></div>
+          <div class="meter" title="How still you’re holding. Movement adds noise."><div class="mrow"><span>Stillness</span><b id="pMot">–</b></div><div class="mbar"><span id="mMot"></span></div></div>
+          <div class="meter" title="Whether the lighting is good enough to read skin color."><div class="mrow"><span>Light</span><b id="pLum">–</b></div><div class="mbar"><span id="mLum"></span></div></div>
+        </div>
+      </div>
+
+      <p class="prov" id="prov" hidden></p>
+
+      <div class="manual" id="manualBox" hidden>
+        <label class="micro" for="manualIn">Your manual pulse count (optional)</label>
+        <div><input id="manualIn" type="number" inputmode="numeric" min="30" max="220" placeholder="bpm"><span id="manualNote"></span></div>
       </div>
     </div>
   </div>
 
   <div class="title">
-    <div class="meta">
-      <span class="year">2026</span>
-      <span class="micro hide">Remote photoplethysmography<br>with a built-in trust score</span>
-      <span class="micro">Runs in<br>your browser</span>
-    </div>
-    <h1>Pulse check</h1>
-    <div class="sub">
-      <span class="big">Webcam // heart rate // trust score</span>
-    </div>
+    <h1>Telesis</h1>
   </div>
 </header>
 
 
-<section class="test" id="test">
+<section id="why">
   <div class="sec-head">
     <span class="sec-num">/01</span>
     <div>
-      <h2>Test it against<span class="serif">a real sensor</span></h2>
-      <p>No smartwatch needed. Put two fingers on your wrist or neck and count your pulse for 30 seconds while the camera runs, then double it. Save the reading and type in your count. A clip-on pulse oximeter works too.</p>
+      <h2>Who this<span class="serif">is for</span></h2>
+      <p>Operators of humanoid and teleoperated robots in safety-critical settings: remote surgery, hazardous-environment work, logistics.</p>
+    </div>
+  </div>
+  <div class="prose">
+    <p><strong>The failure it prevents:</strong> a tired or distracted operator making a control error while a physical robot acts on the other end.</p>
+    <p>Sensing operator state in real time is a prerequisite for trusting a human-in-the-loop robot. The camera is already there, so the sensor costs nothing extra and the operator wears nothing.</p>
+  </div>
+</section>
+
+<section class="test" id="test">
+  <div class="sec-head">
+    <span class="sec-num">/02</span>
+    <div>
+      <h2>Accuracy<span class="serif">check</span></h2>
+      <p>Each reading is logged here. To check accuracy, measure, then enter your own manual pulse count to compare.</p>
+      <p>For your count, put two fingers on your wrist or neck for 30 seconds while the camera runs, then double it.</p>
     </div>
   </div>
 
-  <div class="picker" role="group" aria-label="Condition">
-    <button class="chip" aria-pressed="true">Sitting still</button>
-    <button class="chip" aria-pressed="false">Talking</button>
-    <button class="chip" aria-pressed="false">Moving head</button>
-    <button class="chip" aria-pressed="false">Dim light</button>
-    <span class="gap"></span>
-    <button class="btn" id="saveBtn" disabled>Save reading</button>
-  </div>
-
-  <div class="stats" id="stats"></div>
-
   <div class="tablewrap">
     <table>
-      <thead><tr class="micro"><th>Condition</th><th>Webcam bpm</th><th>Quality</th><th>Your count bpm</th><th>Error</th></tr></thead>
+      <thead><tr class="micro"><th>Condition</th><th>Webcam bpm</th><th>Signal quality</th><th>Your manual count</th><th>Difference</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
   </div>
-  <p class="empty" id="emptyRows">No readings yet. Start the camera above, then save one.</p>
+  <p class="empty" id="emptyRows">No readings yet. Each locked measurement is logged here automatically.</p>
   <div class="tools"><button class="textbtn" id="copyBtn">Copy results</button><button class="textbtn" id="clearBtn">Clear all</button></div>
 </section>
 
 <section id="how">
   <div class="sec-head">
-    <span class="sec-num">/02</span>
+    <span class="sec-num">/03</span>
     <h2>How it<span class="serif">works</span></h2>
   </div>
   <ol class="steps">
-    <li><div><h3>Average the forehead</h3><p>Every frame, the page averages the red, green and blue values inside the forehead box. Blood volume changes with each heartbeat and shifts skin color by a fraction of a percent.</p></div></li>
+    <li><div><h3>Find the skin</h3><p>Face tracking finds your forehead and both cheeks in every frame, and the page averages the red, green and blue values inside each area. Blood volume changes with each heartbeat and shifts skin color by a fraction of a percent. If tracking can’t start or can’t find your face, a fixed box on the forehead takes over.</p></div></li>
     <li><div><h3>Separate pulse from light</h3><p>The color traces are resampled to 30 samples per second and combined with the POS algorithm (Wang et al., 2017), which keeps the pulse and cancels most brightness changes.</p></div></li>
-    <li><div><h3>Find the beat</h3><p>The signal is filtered and its spectrum searched between 42 and 210 beats per minute. The strongest peak becomes the heart rate.</p></div></li>
-    <li><div><h3>Score the trust</h3><p>Three checks feed a 0–100 score: how clearly the pulse peak stands out from noise, how still the forehead is, and whether the light is too dark or overexposed.</p></div></li>
+    <li><div><h3>Find the beat</h3><p>The signal is filtered and its spectrum searched between 42 and 210 beats per minute. The areas with the clearest pulse count the most, and the strongest peak becomes the heart rate.</p></div></li>
+    <li><div><h3>Score the trust</h3><p>Three checks feed a 0–100 score: how clearly the pulse peak stands out from noise, how still your face is, and whether the light is too dark or overexposed. This score only says whether the measurement is reliable. It says nothing about the operator.</p></div></li>
     <li><div><h3>Refuse to bluff</h3><p>Below 40, the number is crossed out. A confident wrong reading is worse than no reading.</p></div></li>
+    <li><div><h3>Judge the operator, separately</h3><p>Once the signal is good, the page asks you to hold still for 10 seconds and collects every trustworthy estimate. If they agree, the median becomes the locked heart rate. If they don’t, it asks you to try again. The operator state is judged once, from that locked reading and how much the heart rate moved during the hold. Ready means 50 to 90 bpm and steady. Caution means 90 to 110 bpm, a less steady rate, or a reading that is only just reliable. Not recommended means over 110 or under 45 bpm, or a rate that swings a lot. These thresholds are placeholders until they are calibrated.</p></div></li>
+    <li><div><h3>Know what heart rate can’t tell you</h3><p>Heart rate and its variability are one input to operator readiness, not the whole picture. True fatigue and stress detection needs heart-rate variability (HRV) and per-person calibration. That calibration is exactly where biomarker data from Hemio fits, turning a generic signal into a per-operator baseline.</p></div></li>
   </ol>
 </section>
 
 <section class="log" id="log">
   <div class="sec-head">
-    <span class="sec-num">/03</span>
+    <span class="sec-num">/04</span>
     <h2>The build<span class="serif">log</span></h2>
   </div>
   <div class="prose">
@@ -315,7 +390,7 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
     <h3>Why this matters for Hemio</h3>
     <p>Hemio is built on health data people can trust. Before a camera-based measurement can ever sit next to a blood test result, it has to know when it’s unreliable. This quality layer is my first piece of the rPPG data pipeline I want to build into the Hemio app.</p>
     <h3>What’s next</h3>
-    <p>Calibrate the quality score so it matches the real error instead of being overly cautious, repeat the test with a clip-on pulse oximeter as a more precise reference, replace the fixed forehead box with face tracking, and test across more skin tones and lighting setups.</p>
+    <p>Calibrate the quality score so it matches the real error instead of being overly cautious, repeat the test with a clip-on pulse oximeter as a more precise reference, replace the fixed forehead box with face tracking, and test across more skin tones and lighting setups. For the operator-state layer: HRV-based fatigue detection, per-operator calibration with Hemio biomarker data, and validation against operator-load scenarios, not just rest.</p>
     <p class="disclaimer">This is a research prototype, not a medical device. Don’t use it to make health decisions.</p>
   </div>
 </section>
@@ -329,39 +404,164 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
 <script>
 (function(){
-  const FS=30, WINDOW=10, MIN_SPAN=6, SIDE=120;
-  const ROI={x:0.37,y:0.17,w:0.26,h:0.11};
+  const FS=30, WINDOW=12, MIN_SPAN=6;
+  const ROI={x:0.37,y:0.17,w:0.26,h:0.11}; // fixed fallback box, as a fraction of the frame
   const $=id=>document.getElementById(id);
   const reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const video=$('cam');
-  const roiEl=$('roi');
-  roiEl.style.left=(ROI.x*100)+'%'; roiEl.style.top=(ROI.y*100)+'%';
-  roiEl.style.width=(ROI.w*100)+'%'; roiEl.style.height=(ROI.h*100)+'%';
+  const video=$('cam'), overlay=$('overlay'), octx=overlay.getContext('2d');
+  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+  const CUE='#E8C9A0', CUE_FILL='rgba(232,201,160,.16)'; // same as --cue in the CSS
 
+  // ---- face tracking (MediaPipe Face Landmarker, files served from this repo) ----
+  const MP_DIR='vendor/mediapipe/tasks-vision-1.1.1', MODEL='models/face_landmarker.task';
+  // Skin areas, as MediaPipe face-mesh point numbers. [a,b,t] means the point t of the way from a to b.
+  // Each area is the outline around its points. The forehead strip sits between the brows and
+  // mid-forehead (point 151), well below the hairline (point 10).
+  const AREAS=[
+    {name:'Forehead',pts:[69,108,151,337,299,[334,299,.2],[336,337,.2],[9,151,.2],[107,108,.2],[105,69,.2]]},
+    {name:'Cheek',pts:[117,118,101,36,205,187,147,123]},
+    {name:'Cheek',pts:[346,347,330,266,425,411,376,352]}
+  ];
+  const STEADY_PTS=[6,168,151,9,117,346,1]; // nose bridge, forehead, cheekbones, nose tip: used to measure head movement
+  const TRACK_EVERY=1/15, LOST_AFTER=1, FOUND_AFTER=0.5, FOLLOW=0.6;
+  let tracker=null, trackStatus='off'; // off | loading | ready | failed
+  let mode='fixed'; // 'face' (tracked areas) or 'fixed' (fallback box)
+  let lastTrackT=-Infinity, faceSeenT=-Infinity, faceStreak=null, lm=null, prevSteady=null, speed=0, faceFrac=0, faceC=null;
 
-  const grab=document.createElement('canvas'); grab.width=160; grab.height=120;
+  async function loadTracker(){
+    if(trackStatus==='loading'||trackStatus==='ready') return;
+    trackStatus='loading';
+    try{
+      const mp=await import('./'+MP_DIR+'/vision_bundle.mjs');
+      const files=await mp.FilesetResolver.forVisionTasks(MP_DIR+'/wasm');
+      const make=delegate=>mp.FaceLandmarker.createFromOptions(files,{baseOptions:{modelAssetPath:MODEL,delegate},runningMode:'VIDEO',numFaces:1});
+      try{ tracker=await make('GPU'); }catch(e){ tracker=await make('CPU'); }
+      trackStatus='ready';
+    }catch(e){ console.warn('Face tracking could not load, using the fixed box.',e); tracker=null; trackStatus='failed'; }
+   
+  }
+
+  // Runs face detection about 15 times a second and keeps smoothed point positions in pixels.
+  function track(t){
+    if(!tracker||t-lastTrackT<TRACK_EVERY) return;
+    lastTrackT=t;
+    let face=null;
+    try{ const res=tracker.detectForVideo(video,performance.now()); face=res.faceLandmarks&&res.faceLandmarks[0]; }
+    catch(e){ console.warn('Face tracking stopped working, using the fixed box.',e); tracker=null; trackStatus='failed'; return; }
+    if(!face){ faceStreak=null; prevSteady=null; return; }
+    const fresh=t-faceSeenT>LOST_AFTER;
+    faceSeenT=t; if(faceStreak===null) faceStreak=t;
+    if(fresh||!lm) lm=face.map(p=>({x:p.x*W,y:p.y*H}));
+    else for(let i=0;i<face.length;i++){ lm[i].x+=FOLLOW*(face[i].x*W-lm[i].x); lm[i].y+=FOLLOW*(face[i].y*H-lm[i].y); }
+    // head movement in face widths per second, from the raw (unsmoothed) points
+    const fw=Math.hypot((face[454].x-face[234].x)*W,(face[454].y-face[234].y)*H)||1;
+    faceFrac=fw/W;
+    let sx=0,sy=0; for(const i of STEADY_PTS){ sx+=face[i].x*W; sy+=face[i].y*H; }
+    const c={x:sx/STEADY_PTS.length,y:sy/STEADY_PTS.length,t};
+    faceC={x:c.x/W,y:c.y/H}; // face center, 0 to 1 across the frame
+    if(prevSteady&&c.t>prevSteady.t) speed=Math.hypot(c.x-prevSteady.x,c.y-prevSteady.y)/fw/(c.t-prevSteady.t);
+    prevSteady=c;
+  }
+
+  // Face areas when a face is in view, the fixed box otherwise. Switching clears the signal.
+  function updateMode(t){
+    let next=mode;
+    if(!tracker) next='fixed';
+    else if(mode==='face'&&t-faceSeenT>LOST_AFTER) next='fixed';
+    else if(mode==='fixed'&&faceStreak!==null&&t-faceStreak>=FOUND_AFTER) next='face';
+    if(next!==mode){ mode=next; resetSignal(); }
+  }
+
+  function hull(pts){
+    pts=pts.slice().sort((a,b)=>a.x-b.x||a.y-b.y);
+    const cr=(o,a,b)=>(a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x), lo=[], up=[];
+    for(const p of pts){ while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+    for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+    return lo.slice(0,-1).concat(up.slice(0,-1));
+  }
+  function areaPolys(){
+    if(mode==='fixed'){
+      const x=ROI.x*W,y=ROI.y*H,w=ROI.w*W,h=ROI.h*H;
+      return [{name:'Forehead (fixed box)',poly:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}]}];
+    }
+    return AREAS.map(a=>({name:a.name,poly:hull(a.pts.map(s=>typeof s==='number'?lm[s]:{x:lm[s[0]].x+(lm[s[1]].x-lm[s[0]].x)*s[2],y:lm[s[0]].y+(lm[s[1]].y-lm[s[0]].y)*s[2]}))}));
+  }
+
+  // Mean color of the pixels inside a polygon (plus their brightness values for the fixed-box motion check).
+  function meanIn(d,poly,wantGray){
+    let x0=W,x1=0,y0=H,y1=0;
+    for(const p of poly){ x0=Math.min(x0,p.x); x1=Math.max(x1,p.x); y0=Math.min(y0,p.y); y1=Math.max(y1,p.y); }
+    x0=Math.max(0,Math.floor(x0)); x1=Math.min(W-1,Math.ceil(x1)); y0=Math.max(0,Math.floor(y0)); y1=Math.min(H-1,Math.ceil(y1));
+    let r=0,g=0,b=0,n=0; const gray=wantGray?[]:null, m=poly.length;
+    for(let y=y0;y<=y1;y++){
+      const py=y+.5;
+      for(let x=x0;x<=x1;x++){
+        const px=x+.5; let inside=false;
+        for(let i=0,j=m-1;i<m;j=i++){ const a=poly[i],c=poly[j]; if((a.y>py)!==(c.y>py)&&px<(c.x-a.x)*(py-a.y)/(c.y-a.y)+a.x) inside=!inside; }
+        if(!inside) continue;
+        const k=(y*W+x)*4; r+=d[k]; g+=d[k+1]; b+=d[k+2]; n++;
+        if(gray) gray.push((d[k]+d[k+1]+d[k+2])/3);
+      }
+    }
+    return n<12?null:{rgb:[r/n,g/n,b/n],gray};
+  }
+
+  // Draws the measured areas on top of the (mirrored) video so you can check they sit on skin.
+  function drawOverlay(areas){
+    const dpr=window.devicePixelRatio||1, cw=Math.round(overlay.clientWidth*dpr), ch=Math.round(overlay.clientHeight*dpr);
+    if(overlay.width!==cw||overlay.height!==ch){ overlay.width=cw; overlay.height=ch; }
+    octx.clearRect(0,0,cw,ch);
+    if(!areas) return;
+    octx.lineWidth=1.5*dpr; octx.strokeStyle=CUE; octx.fillStyle=CUE_FILL;
+    octx.font='600 '+Math.round(10*dpr)+'px Archivo, Helvetica, Arial, sans-serif'; octx.textAlign='center';
+    for(const a of areas){
+      if(a.poly.length<3) continue;
+      octx.beginPath();
+      a.poly.forEach((p,i)=>{ const x=(1-p.x/W)*cw, y=p.y/H*ch; i?octx.lineTo(x,y):octx.moveTo(x,y); });
+      octx.closePath(); octx.fill(); octx.stroke();
+      let top=Infinity,sx=0; for(const p of a.poly){ top=Math.min(top,p.y); sx+=p.x; }
+      const lx=(1-sx/a.poly.length/W)*cw, ly=top/H*ch-6*dpr;
+      octx.lineWidth=3*dpr; octx.strokeStyle='rgba(20,21,24,.85)'; octx.strokeText(a.name.toUpperCase(),lx,ly);
+      octx.fillStyle=CUE; octx.fillText(a.name.toUpperCase(),lx,ly);
+      octx.lineWidth=1.5*dpr; octx.strokeStyle=CUE; octx.fillStyle=CUE_FILL;
+    }
+  }
+
+  const grab=document.createElement('canvas');
+  let W=320, H=240;
   const gctx=grab.getContext('2d',{willReadFrequently:true});
-  let samples=[], prevGray=null, running=false, stream=null, timer=null, smoothBpm=null, last=null, liveSig=null;
+  let samples=[], prevGray=null, running=false, stream=null, timer=null, liveSig=null;
+  // Clearing the signal mid-countdown (face lost or found, so the areas change) aborts the measurement.
+  function resetSignal(){ samples=[]; prevGray=null; resetStable(); if(phase==='hold') retry(LOST_MSG); }
 
   function sample(){
     if(!running) return;
     try{
-      const s=video.videoWidth;
-      if(s){
-        gctx.drawImage(video,0,0,160,120);
-        const rx=Math.round(ROI.x*160), ry=Math.round(ROI.y*120), rw=Math.round(ROI.w*160), rh=Math.round(ROI.h*120);
-        const d=gctx.getImageData(rx,ry,rw,rh).data, n=rw*rh, gray=new Float32Array(n);
-        let r=0,g=0,b=0;
-        for(let i=0,j=0;i<d.length;i+=4,j++){r+=d[i];g+=d[i+1];b+=d[i+2];gray[j]=(d[i]+d[i+1]+d[i+2])/3;}
-        r/=n; g/=n; b/=n;
-        let motion=null;
-        if(prevGray){motion=0;for(let j=0;j<n;j++)motion+=Math.abs(gray[j]-prevGray[j]);motion/=n;}
-        prevGray=gray;
+      if(video.videoWidth&&video.readyState>=2){
         const t=performance.now()/1000;
-        samples.push({t,r,g,b,lum:(r+g+b)/3,motion});
-        while(samples.length && samples[0].t<t-WINDOW) samples.shift();
+        track(t); updateMode(t);
+        gctx.drawImage(video,0,0,W,H);
+        const d=gctx.getImageData(0,0,W,H).data;
+        const areas=areaPolys();
+        drawOverlay(areas);
+        const prev=samples[samples.length-1];
+        const regs=[]; let lum=0, motion=null;
+        areas.forEach((a,k)=>{
+          const m=meanIn(d,a.poly,mode==='fixed');
+          regs.push(m?m.rgb:prev?prev.regs[k]:null);
+          if(mode==='fixed'&&m){
+            if(prevGray&&prevGray.length===m.gray.length){ motion=0; for(let j=0;j<m.gray.length;j++) motion+=Math.abs(m.gray[j]-prevGray[j]); motion/=m.gray.length; }
+            prevGray=m.gray;
+          }
+        });
+        if(mode==='face') motion=speed;
+        if(regs.every(Boolean)){
+          for(const c of regs) lum+=(c[0]+c[1]+c[2])/3;
+          samples.push({t,regs,lum:lum/regs.length,motion});
+          while(samples.length&&samples[0].t<t-WINDOW) samples.shift();
+        }
       }
-    }catch(e){}
+    }catch(e){ console.warn(e); }
     schedule();
   }
   function schedule(){
@@ -371,7 +571,6 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
 
   const mean=a=>{let s=0;for(const v of a)s+=v;return s/a.length;};
   const std=a=>{const m=mean(a);let s=0;for(const v of a)s+=(v-m)*(v-m);return Math.sqrt(s/a.length);};
-  const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 
   function pos(R,G,B,l){
     const N=R.length, H=new Float64Array(N);
@@ -396,122 +595,377 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
     for(let i=0;i<N;i++) sm[i]=(out[Math.max(0,i-1)]+out[i]+out[Math.min(N-1,i+1)])/3;
     return sm;
   }
-  function spectrum(x){
+  const FREQS=[]; for(let i=0;i<=390;i++) FREQS.push(0.6+i*0.01); // 0.6 to 4.5 Hz
+  // Power at each frequency (Hann-windowed DFT).
+  function power(x){
     const N=x.length, xs=new Float64Array(N);
     for(let i=0;i<N;i++) xs[i]=x[i]*(0.5-0.5*Math.cos(2*Math.PI*i/(N-1)));
-    const freqs=[], pw=[];
-    for(let f=0.6;f<=4.5;f+=0.01){let re=0,im=0;for(let i=0;i<N;i++){const ph=2*Math.PI*f*i/FS;re+=xs[i]*Math.cos(ph);im-=xs[i]*Math.sin(ph);}freqs.push(f);pw.push(re*re+im*im);}
+    return FREQS.map(f=>{let re=0,im=0;for(let i=0;i<N;i++){const ph=2*Math.PI*f*i/FS;re+=xs[i]*Math.cos(ph);im-=xs[i]*Math.sin(ph);}return re*re+im*im;});
+  }
+  // Strongest peak between 42 and 210 bpm, and how much power sits at it and its 2nd harmonic.
+  function peak(pw){
     let best=-1,bf=0;
-    for(let k=0;k<freqs.length;k++) if(freqs[k]>=0.7&&freqs[k]<=3.5&&pw[k]>best){best=pw[k];bf=freqs[k];}
+    for(let k=0;k<FREQS.length;k++) if(FREQS[k]>=0.7&&FREQS[k]<=3.5&&pw[k]>best){best=pw[k];bf=FREQS[k];}
     let sig=0,noise=0;
-    for(let k=0;k<freqs.length;k++){const f=freqs[k]; if(Math.abs(f-bf)<=0.1||Math.abs(f-2*bf)<=0.2) sig+=pw[k]; else noise+=pw[k];}
-    return {bpm:bf*60, snr:10*Math.log10(sig/(noise||1e-12))};
+    for(let k=0;k<FREQS.length;k++){const f=FREQS[k]; if(Math.abs(f-bf)<=0.1||Math.abs(f-2*bf)<=0.2) sig+=pw[k]; else noise+=pw[k];}
+    return {bpm:bf*60, snr:10*Math.log10(sig/(noise||1e-12)), frac:sig/((sig+noise)||1)};
+  }
+
+  // ---- stable readings ----
+  // analyze() makes a fresh estimate every 0.5 s, and single estimates can jump around.
+  // The big number is built from them like this:
+  //  1. Keep the last few estimates that scored 40 or more (the median ignores odd ones out).
+  //  2. "Settling" until 5 of the last 7 estimates agree within 4 bpm.
+  //  3. After that, the number updates once per second, ignores wobbles under 1.5 bpm
+  //     and moves at most 1 bpm per step.
+  //  4. A change of more than 12 bpm is ignored unless it holds for 3 seconds in a row.
+  const HIST=7, HIST_AGE=5, SETTLE_N=5, SETTLE_TOL=4, DEADBAND=1.5, MAX_STEP=1, JUMP=12, JUMP_CONFIRM=3, SHOW_EVERY=1;
+  const median=a=>{const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+  let est=[], shownBpm=null, jumpCount=0, lastShowT=-Infinity;
+  function resetStable(){ est=[]; shownBpm=null; jumpCount=0; lastShowT=-Infinity; }
+  // Returns true when it is time to update the big number (once per second).
+  function stabilize(bpm,score,t){
+    if(score>=40) est.push({t,bpm});
+    est=est.filter(e=>e.t>t-HIST_AGE).slice(-HIST);
+    if(t-lastShowT<SHOW_EVERY) return false;
+    lastShowT=t;
+    if(est.length<SETTLE_N) return true;
+    const vals=est.map(e=>e.bpm), m=median(vals);
+    if(shownBpm===null){
+      if(vals.filter(v=>Math.abs(v-m)<=SETTLE_TOL).length>=SETTLE_N) shownBpm=m;
+      return true;
+    }
+    const diff=m-shownBpm;
+    if(Math.abs(diff)>JUMP){
+      if(++jumpCount>=JUMP_CONFIRM){ shownBpm=m; jumpCount=0; }
+    }else{
+      jumpCount=0;
+      if(Math.abs(diff)>=DEADBAND) shownBpm+=clamp(diff,-MAX_STEP,MAX_STEP);
+    }
+    return true;
+  }
+
+  // ---- operator state ----
+  // A separate question from the trust score. Trust = is the measurement reliable.
+  // Operator state = is the operator fit to take control. Simple rules, no model.
+  // It only reads numbers the pipeline above already made; it never changes them.
+  // PLACEHOLDER thresholds: not validated. Calibrate later against operator-load scenarios.
+  const OP={
+    TRUST_MIN:40, TRUST_MARGINAL:55,   // trust score cut-offs
+    MIN_STABLE:10,                     // seconds of trusted, settled readings before any verdict
+    WIN:15,                            // seconds of history used for variability
+    READY_LO:50, READY_HI:90,          // bpm range for Ready
+    CAUTION_HI:110, NR_LO:45,          // above CAUTION_HI or below NR_LO = Not recommended
+    STD_READY:8, STD_NR:15             // bpm std dev: < 8 steady, 8 to 15 Caution, > 15 Not recommended
+  };
+  //  (MIN_STABLE and WIN are covered by the 10 s hold window below.)
+  // One verdict from a locked reading. bpm = locked value, sd = how much the smoothed
+  // estimate moved during the hold, score = median trust score during the hold.
+  function operatorVerdict(bpm,sd,score){
+    const why=[];
+    let state='ready';
+    if(bpm>OP.CAUTION_HI||bpm<OP.NR_LO||sd>OP.STD_NR){
+      state='notrec';
+      if(bpm>OP.CAUTION_HI) why.push('heart rate above '+OP.CAUTION_HI+' bpm');
+      if(bpm<OP.NR_LO) why.push('heart rate below '+OP.NR_LO+' bpm');
+      if(sd>OP.STD_NR) why.push('heart rate swinging a lot');
+    }else{
+      if(bpm>OP.READY_HI){ state='caution'; why.push('heart rate above '+OP.READY_HI+' bpm'); }
+      if(bpm<OP.READY_LO){ state='caution'; why.push('heart rate below '+OP.READY_LO+' bpm'); }
+      if(sd>=OP.STD_READY){ state='caution'; why.push('heart rate not steady'); }
+      if(score<OP.TRUST_MARGINAL){ state='caution'; why.push('reading only just reliable'); }
+    }
+    return {state,bpm,sd,score,why};
+  }
+  const OP_LABEL={ready:'Ready',caution:'Caution',notrec:'Not recommended'};
+  const OP_HEAD={ready:'Cleared to take control.',caution:'Not cleared yet.',notrec:'Do not take control.'};
+  // Plain reason for the verdict, matched to what actually triggered it.
+  function verdictReason(op){
+    const hi=op.bpm>OP.READY_HI, lo=op.bpm<OP.READY_LO, shaky=op.sd>=OP.STD_READY;
+    if(op.state==='ready') return 'Heart rate is calm and steady; the operator looks alert.';
+    if(op.state==='notrec'){
+      if(op.bpm>OP.CAUTION_HI||op.bpm<OP.NR_LO) return 'Heart rate is outside a safe operating range.';
+      return 'Heart rate swung too much during the hold to judge safely.';
+    }
+    // Caution only because the reading is marginal: say how to confirm it.
+    if(!hi&&!lo&&!shaky) return 'The reading is only just reliable, so hold still for the full '+HOLD_SECONDS+' seconds and measure again to confirm.';
+    if(lo) return 'Heart rate is below the Ready range'+(shaky?' and unsteady.':'.');
+    return 'Heart rate is '+[hi?'elevated':null,shaky?'unsteady':null].filter(Boolean).join(' and ')+', which can be a sign of stress or fatigue.';
+  }
+  // Range color for a bpm value, from the same thresholds as the verdict.
+  function bpmRange(b){
+    if(b<OP.NR_LO||b>OP.CAUTION_HI) return 'bad';
+    if(b<OP.READY_LO||b>OP.READY_HI) return 'warn';
+    return 'good';
+  }
+
+  // ---- measurement session ----
+  // The page takes one measurement and locks it, instead of showing a number that changes every second.
+  //   off        camera off, everything blank
+  //   acquiring  live sub-metrics. The oval is dark until the face is inside it and the
+  //              signal is good, then it turns light tan ("in position").
+  //   hold       after 2 s in position: "Hold still" countdown, trusted estimates are collected.
+  //              Leaving position aborts back to acquiring.
+  //   result     final bpm = median of the collected estimates, one operator verdict, logged
+  //              to the Accuracy check table. Stays until "Measure again". Never restarts on its own.
+  // PLACEHOLDER values: not validated. Calibrate later with logged readings vs reference counts.
+  const HOLD_SECONDS=10;   // length of the hold-still window
+  const START_GATE=50;     // trust score needed before the countdown starts
+  const GOOD_FOR=2;        // seconds the score must stay at or above START_GATE first
+  const KEEP_GATE=40;      // existing trust gate: estimates below it are not collected
+  const DROP_GRACE=1;      // seconds out of position before the countdown aborts (ignores one-tick dips)
+  const MAX_IQR=15;        // bpm: a wider spread (interquartile range) means the window did not converge
+  const MIN_TRUSTED=10;    // trusted estimates needed to lock (about 20 arrive in 10 s)
+  const NOTE_FOR=3;        // seconds a retry message stays on screen
+  // Where the dashed oval sits, as fractions of the frame (matches the .oval CSS), and how well a face must fit it.
+  const OVAL={cx:.5, cy:.48, rx:.19, ry:.41, MAX_OFF:.45, MIN_W:.22, MAX_W:.5};
+  const LOST_MSG='Lost position. Get back in the oval.', UNSTABLE_MSG='Reading unstable. Reposition and hold still.';
+  let phase='off', goodSince=null, holdStart=null, lowSince=null, hold=[], locked=null, note=null;
+  const now=()=>performance.now()/1000;
+  const quant=(a,q)=>{const s=[...a].sort((x,y)=>x-y),i=(s.length-1)*q,lo=Math.floor(i);return s[lo]+(s[Math.min(lo+1,s.length-1)]-s[lo])*(i-lo);};
+
+  function toAcquiring(){ phase='acquiring'; goodSince=null; holdStart=null; lowSince=null; hold=[]; locked=null; setOval(false); $('manualIn').value=''; }
+  function setOval(on){ document.querySelector('.oval').classList.toggle('on',on); }
+  // Is the user in position? Face inside the oval (when face tracking runs) and trust score >= gate.
+  // Without face tracking it falls back to the trust score alone.
+  function inPosition(score,gate){
+    if(trackStatus==='loading') return {ok:false,hint:'Loading face tracking.'};
+    if(trackStatus==='ready'){
+      if(mode!=='face'||!faceC||now()-faceSeenT>0.5) return {ok:false,hint:'Center your face in the oval.'};
+      const dx=(faceC.x-OVAL.cx)/OVAL.rx, dy=(faceC.y-OVAL.cy)/OVAL.ry;
+      if(Math.hypot(dx,dy)>OVAL.MAX_OFF) return {ok:false,hint:'Center your face in the oval.'};
+      if(faceFrac<OVAL.MIN_W) return {ok:false,hint:'Move a little closer.'};
+      if(faceFrac>OVAL.MAX_W) return {ok:false,hint:'Move back a little.'};
+    }
+    return {ok:score>=gate,hint:null};
+  }
+  function retry(msg){ toAcquiring(); note={text:msg,until:now()+NOTE_FOR}; }
+  function finish(){
+    const vals=hold.map(h=>h.bpm);
+    const iqr=vals.length?quant(vals,.75)-quant(vals,.25):Infinity;
+    if(vals.length<MIN_TRUSTED||iqr>MAX_IQR){
+      console.info('Not locked:',vals.length,'trusted estimates, spread (IQR)',iqr.toFixed?iqr.toFixed(1):iqr,'bpm',vals.map(Math.round));
+      retry(UNSTABLE_MSG); return;
+    }
+    const bpm=Math.round(median(vals)), score=Math.round(median(hold.map(h=>h.score)));
+    locked={bpm,score,n:vals.length,op:operatorVerdict(bpm,std(hold.map(h=>h.smooth)),score)};
+    phase='result'; setOval(false);
+    locked.row=logReading(locked);
+  }
+  // Called every analysis tick (0.5 s) with the fresh estimate and trust score.
+  // Returns the position check so the status line can show a hint.
+  function step(bpm,score){
+    const t=now();
+    if(phase==='acquiring'){
+      const p=inPosition(score,START_GATE);
+      setOval(p.ok);
+      // While a retry message is up, don't count toward the next countdown.
+      if(p.ok&&!(note&&t<note.until)){ if(goodSince===null) goodSince=t; if(t-goodSince>=GOOD_FOR){ phase='hold'; holdStart=t; lowSince=null; hold=[]; note=null; } }
+      else goodSince=null;
+      return p;
+    }
+    if(phase==='hold'){
+      const p=inPosition(score,KEEP_GATE);
+      setOval(p.ok);
+      if(!p.ok){ if(lowSince===null) lowSince=t; if(t-lowSince>=DROP_GRACE){ retry(LOST_MSG); return p; } }
+      else{ lowSince=null; hold.push({bpm,score,smooth:median(est.map(e=>e.bpm))}); }
+      if(t-holdStart>=HOLD_SECONDS) finish();
+      return p;
+    }
+    return {ok:false,hint:null};
   }
 
   function analyze(){
-    if(samples.length<3) return;
+    if(phase!=='acquiring'&&phase!=='hold') return; // off, or a result that waits for "Measure again"
+    if(samples.length<3){ setOval(false); renderSession(null,MIN_SPAN); return; }
     const span=samples[samples.length-1].t-samples[0].t;
-    if(span<MIN_SPAN){ $('progress').textContent='Collecting signal, '+Math.max(0,Math.ceil(MIN_SPAN-span))+' s left. Hold still.'; return; }
-    $('progress').textContent='Live, last '+Math.round(span)+' seconds of video';
-    const t0=samples[0].t, N=Math.floor(span*FS);
-    const R=new Float64Array(N),G=new Float64Array(N),B=new Float64Array(N);
-    let k=0;
-    for(let i=0;i<N;i++){
-      const t=t0+i/FS;
-      while(k<samples.length-2 && samples[k+1].t<t) k++;
-      const a=samples[k], c=samples[k+1], f=c.t===a.t?0:clamp((t-a.t)/(c.t-a.t),0,1);
-      R[i]=a.r+(c.r-a.r)*f; G[i]=a.g+(c.g-a.g)*f; B[i]=a.b+(c.b-a.b)*f;
+    if(span<MIN_SPAN){ setOval(false); renderSession(null,Math.max(1,Math.ceil(MIN_SPAN-span))); return; }
+    const t0=samples[0].t, N=Math.floor(span*FS), nReg=samples[0].regs.length;
+    // One pulse signal and spectrum per skin area.
+    const parts=[];
+    for(let r=0;r<nReg;r++){
+      const R=new Float64Array(N),G=new Float64Array(N),B=new Float64Array(N);
+      let k=0;
+      for(let i=0;i<N;i++){
+        const t=t0+i/FS;
+        while(k<samples.length-2 && samples[k+1].t<t) k++;
+        const a=samples[k].regs[r], c=samples[k+1].regs[r], ta=samples[k].t, tc=samples[k+1].t, f=tc===ta?0:clamp((t-ta)/(tc-ta),0,1);
+        R[i]=a[0]+(c[0]-a[0])*f; G[i]=a[1]+(c[1]-a[1])*f; B[i]=a[2]+(c[2]-a[2])*f;
+      }
+      const sig=filter(pos(R,G,B,Math.round(1.6*FS))), pw=power(sig);
+      parts.push({sig,pw,...peak(pw)});
     }
-    const sig=filter(pos(R,G,B,Math.round(1.6*FS)));
-    const {bpm,snr}=spectrum(sig);
+    // Combine the areas: each spectrum scaled to the same total, weighted by how clean its own pulse is.
+    const comb=new Float64Array(FREQS.length);
+    let wsum=0; for(const p of parts){ p.w=p.frac*p.frac; wsum+=p.w; }
+    for(const p of parts){
+      const w=wsum>0?p.w/wsum:1/parts.length, tot=p.pw.reduce((s,v)=>s+v,0)||1;
+      for(let k=0;k<FREQS.length;k++) comb[k]+=w*p.pw[k]/tot;
+      p.w=w;
+    }
+    const {bpm,snr}=peak(comb);
+    // Combined pulse wave (kept for the later heartbeat sound and "under the hood" view).
+    const sig=new Float64Array(N);
+    for(const p of parts){ const s=std(p.sig)||1; for(let i=0;i<N;i++) sig[i]+=p.w*p.sig[i]/s; }
     const recent=samples.filter(s=>s.t>samples[samples.length-1].t-2);
     const mots=recent.map(s=>s.motion).filter(v=>v!==null);
     const motion=mots.length?mean(mots):0, lum=mean(recent.map(s=>s.lum));
-    const sS=clamp((snr+6)/10,0,1), sM=clamp(1-(motion-2.5)/8,0,1);
+    // Stillness: with face tracking, head speed in face widths per second; with the fixed box, pixel change.
+    const sS=clamp((snr+6)/10,0,1), sM=mode==='face'?clamp(1-(motion-0.1)/0.4,0,1):clamp(1-(motion-2.5)/8,0,1);
     const sL=lum<50?clamp((lum-25)/25,0,1):lum>220?clamp((245-lum)/25,0,1):1;
     const score=Math.round(100*(0.55*sS+0.3*sM+0.15*sL));
-    if(score>=40) smoothBpm=smoothBpm===null?bpm:smoothBpm*0.7+bpm*0.3;
-    const shown=score>=40?smoothBpm:bpm;
-    last={bpm:Math.round(shown),score};
+    stabilize(bpm,score,samples[samples.length-1].t);
     liveSig=Array.from(sig.slice(Math.max(0,sig.length-6*FS)));
-    render(shown,score,sS,sM,sL,lum);
+    const p=step(bpm,score);
+    renderSession({score,sS,sM,sL,lum,pos:p},0);
   }
 
-  const bpmObj={v:0};
-  function render(bpm,score,sS,sM,sL,lum){
-    const color=score>=70?'var(--lime)':score>=40?'var(--warn)':'var(--bad)';
-    const el=$('bpm'); el.classList.remove('waiting'); if(window.gsap&&!reduce){ gsap.to(bpmObj,{v:Math.round(bpm),duration:.45,ease:'power2.out',overwrite:true,onUpdate:()=>{el.textContent=Math.round(bpmObj.v);}}); } else el.textContent=Math.round(bpm); el.classList.toggle('untrusted',score<40);
-    $('status').textContent=score>=70?'Reading looks trustworthy':score>=40?'Use with caution':'Don’t trust this reading';
-    $('status').style.color=color;
-    $('score').textContent=score; $('score').style.color=color;
-    const q=$('qfill'); q.style.width=score+'%'; q.style.background=color;
-    const reasons=[];
-    if(sM<0.6) reasons.push('Too much movement. Hold still and stop talking for a moment.');
-    if(sL<0.7) reasons.push(lum<50?'Too dark. Face a window or lamp.':'Too bright. Your forehead is overexposed.');
-    if(sS<0.5) reasons.push('Weak pulse. Move closer so your forehead fills the box.');
-    if(!reasons.length) reasons.push('Signal looks clean.');
-    $('reasons').innerHTML=reasons.map(r=>'<li>'+r+'</li>').join('');
-    $('pSnr').textContent=Math.round(sS*100); $('pMot').textContent=Math.round(sM*100); $('pLum').textContent=Math.round(sL*100);
-    $('saveBtn').disabled=false;
+  // ---- what the readout shows ----
+  const DASH='–';
+  // Signal reliability meters, 0 to 100. Tunable color cut-offs.
+  const METER_GOOD=66, METER_FAIR=40;
+  function meter(valId,barId,v){
+    const blank=v==null, c=blank?'':v>=METER_GOOD?'var(--good)':v>=METER_FAIR?'var(--warn)':'var(--bad)';
+    $(valId).textContent=blank?DASH:v;
+    const bar=$(barId); bar.style.width=(blank?0:v)+'%'; bar.style.background=c;
+  }
+  function setParts(score,sS,sM,sL){
+    const pct=x=>x==null?null:Math.round(x*100);
+    meter('score','mScore',score==null?null:score);
+    meter('pSnr','mSnr',pct(sS)); meter('pMot','mMot',pct(sM)); meter('pLum','mLum',pct(sL));
+  }
+  // The single most useful fix right now, or null.
+  function hint(l){
+    if(l.pos&&l.pos.hint) return l.pos.hint;
+    if(l.sM<0.6) return 'Hold still and stop talking for a moment.';
+    if(l.sL<0.7) return l.lum<50?'Too dark. Face a window or lamp.':'Too bright. Your face is overexposed.';
+    if(l.sS<0.5) return mode==='face'?'Weak pulse. Move a little closer and face the light.':'Weak pulse. Move closer so your forehead fills the box.';
+    return null;
+  }
+  // live = this tick's numbers (null while buffering or off); wait = seconds of buffering left.
+  function renderSession(live,wait){
+    const t=now(), el=$('bpm'), st=$('status');
+    let text, color='var(--text)';
+    if(phase==='off'){ setParts(null); text=''; }
+    else if(phase==='result'){ meter('score','mScore',locked.score); text='Reading locked and logged.'; }
+    else{
+      if(live) setParts(live.score,live.sS,live.sM,live.sL);
+      if(phase==='hold'){ text='Hold still: '+Math.max(1,Math.ceil(HOLD_SECONDS-(t-holdStart))); }
+      else if(note&&t<note.until){ text=note.text; color='var(--warn)'; }
+      else if(!live) text='Get in position. Reading your skin, '+wait+' s.';
+      else if(live.pos&&live.pos.ok) text='Hold still…';
+      else{ const h=hint(live); text='Get in position. '+(h||'Hold still while the signal builds.'); }
+    }
+    st.textContent=text; st.style.color=color;
+    // Big number: only a locked value is ever shown.
+    const show=phase==='result';
+    const fresh=show&&shownLock!==locked; // true once per new lock
+    if(fresh){ shownLock=locked; el.textContent=locked.bpm; }
+    // Leaving the result: finish any lock animation instantly so nothing stays half-faded.
+    if(!show){ shownLock=null; if(lockAnim){ lockAnim.progress(1).kill(); lockAnim=null; } el.textContent='––'; }
+    el.classList.toggle('untrusted',!show); el.classList.toggle('waiting',!show);
+    const rc=show?'r-'+bpmRange(locked.bpm):null;
+    for(const n of [el,$('unit')]){ n.classList.remove('r-good','r-warn','r-bad'); if(rc) n.classList.add(rc); }
+    // Operator state: one verdict from the locked value, blank otherwise.
+    const v=$('opVal');
+    if(show){
+      const op=locked.op;
+      v.textContent=OP_LABEL[op.state]+'. '+OP_HEAD[op.state]; v.className='opval '+op.state;
+      $('opWhy').textContent=verdictReason(op);
+    }else{ v.textContent='No verdict yet'; v.className='opval insufficient'; $('opWhy').textContent='Needs a trustworthy, steady reading first.'; }
+    // Where the locked number came from.
+    $('prov').hidden=!show;
+    if(show) $('prov').textContent='Locked · median of '+locked.n+' trusted readings over '+HOLD_SECONDS+' s · varied ±'+Math.round(locked.op.sd)+' bpm';
+    if(fresh) lockAnim=animateLock(el,locked.bpm);
+    $('againBtn').hidden=!show;
+    $('manualBox').hidden=!show;
+    if(show) manualNote();
   }
 
+  // A new lock eases in: the number counts up, then the verdict and reliability meters follow.
+  // Same timing as the page motion. Only the final locked values animate, never live ones.
+  let shownLock=null, lockAnim=null;
+  function animateLock(el,bpm){
+    if(!window.gsap||reduce) return null;
+    const n={v:Math.round(bpm*.6)}, E='power3.out';
+    return gsap.timeline({onComplete:()=>{ el.textContent=bpm; }})
+      .fromTo([el,$('unit')],{autoAlpha:0,y:20},{autoAlpha:1,y:0,duration:.8,ease:E,stagger:.08})
+      .to(n,{v:bpm,duration:1.1,ease:E,onUpdate:()=>{ el.textContent=Math.round(n.v); }},0)
+      .fromTo(['#opVal','#opWhy','#prov'],{autoAlpha:0,y:20},{autoAlpha:1,y:0,duration:.8,ease:E,stagger:.08},.25)
+      .from('.meter .mbar span',{width:'0%',duration:1,ease:E,stagger:.08},.35);
+  }
 
+  let starting=false;
   async function start(){
-    $('err').hidden=true;
+    if(starting||running) return;
+    starting=true; $('err').hidden=true;
     try{ stream=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480},facingMode:'user'},audio:false}); }
-    catch(e){ $('err').hidden=false; $('err').innerHTML='The camera can’t start in this view. Open the live demo at <a href="https://rppg-pulse-check.vercel.app" target="_blank" rel="noopener">rppg-pulse-check.vercel.app</a>, or allow camera access in your browser’s site settings and try again.'; return; }
+    catch(e){ starting=false; $('err').hidden=false; $('err').innerHTML='The camera can’t start in this view. Open the live demo at <a href="https://rppg-pulse-check.vercel.app" target="_blank" rel="noopener">rppg-pulse-check.vercel.app</a>, or allow camera access in your browser’s site settings and try again.'; return; }
     video.srcObject=stream; await video.play().catch(()=>{});
     $('idle').hidden=true; $('guides').hidden=false;
-    if(window.gsap&&!reduce){ gsap.from(video,{opacity:0,duration:.9,ease:'power2.out'}); gsap.from('#guides',{opacity:0,duration:.8,delay:.35}); gsap.from('#camState',{scale:.6,opacity:0,duration:.5,ease:'back.out(2)'}); }
-    if(video.videoWidth&&video.videoHeight) $('frame').style.aspectRatio=video.videoWidth+'/'+video.videoHeight;
-    $('camState').textContent='Live'; $('camState').classList.add('live');
-    samples=[]; prevGray=null; smoothBpm=null; liveSig=null; running=true;
-    $('startBtn').disabled=true; $('stopBtn').disabled=false;
+    if(window.gsap&&!reduce){ gsap.from(video,{opacity:0,duration:.9,ease:'power2.out'}); gsap.from('#guides',{opacity:0,duration:.8,delay:.35}); }
+    if(video.videoWidth&&video.videoHeight){
+      $('frame').style.aspectRatio=video.videoWidth+'/'+video.videoHeight;
+      W=320; H=Math.round(320*video.videoHeight/video.videoWidth);
+    }
+    grab.width=W; grab.height=H;
+    mode='fixed'; lm=null; faceStreak=null; faceSeenT=-Infinity; prevSteady=null; speed=0;
+    phase='off'; resetSignal(); liveSig=null; running=true; starting=false;
+    toAcquiring(); note=null; renderSession(null,MIN_SPAN);
+    $('camBtn').textContent='Stop camera'; $('camBtn').classList.add('line');
+    loadTracker();
     schedule(); timer=setInterval(analyze,500);
   }
   function stop(){
     running=false; clearInterval(timer);
     if(stream) stream.getTracks().forEach(t=>t.stop());
     stream=null; video.srcObject=null; liveSig=null;
-    $('idle').hidden=false; $('guides').hidden=true; $('startBtn').disabled=false; $('stopBtn').disabled=true;
-    $('camState').textContent='Off'; $('camState').classList.remove('live');
-    $('progress').textContent='Camera stopped. Saved readings are kept below.';
+    drawOverlay(null);
+    $('idle').hidden=false; $('guides').hidden=true;
+    phase='off'; locked=null; note=null; setOval(false); renderSession(null,0);
+    $('camBtn').textContent='Start camera'; $('camBtn').classList.remove('line');
   }
-  $('startBtn').addEventListener('click',start);
-  $('stopBtn').addEventListener('click',stop);
-
-  // condition chips
-  let cond='Sitting still';
-  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>{
-    document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed','false'));
-    c.setAttribute('aria-pressed','true'); cond=c.textContent;
-  }));
+  $('camBtn').addEventListener('click',()=>running?stop():start());
+  $('againBtn').addEventListener('click',()=>{ toAcquiring(); note=null; renderSession(null,0); });
 
   // results
-  const CONDS=['Sitting still','Talking','Moving head','Dim light'];
   let rows=[];
-  try{ rows=JSON.parse(localStorage.getItem('rppg-rows')||'[]'); }catch(e){ rows=[]; }
+  // The log lives here and in localStorage, independent of the camera. Only "Clear all" empties it.
+  try{ rows=JSON.parse(localStorage.getItem('rppg-rows')||'[]'); if(!Array.isArray(rows)) rows=[]; }catch(e){ rows=[]; }
   const persist=()=>{ try{ localStorage.setItem('rppg-rows',JSON.stringify(rows)); }catch(e){} };
   const hasWatch=r=>r.watch!==''&&!isNaN(+r.watch);
-  function avgFor(c){const d=rows.filter(r=>r.cond===c&&hasWatch(r)); return d.length?d.reduce((s,r)=>s+Math.abs(r.bpm-(+r.watch)),0)/d.length:null;}
   function drawRows(){
     const tb=$('rows'); tb.innerHTML='';
     rows.forEach((r,i)=>{
       const err=hasWatch(r)?Math.abs(r.bpm-(+r.watch)):null;
       const tr=document.createElement('tr');
-      tr.innerHTML='<td>'+r.cond+'</td><td>'+r.bpm+'</td><td>'+r.score+'</td><td><input type="number" inputmode="numeric" placeholder="type" aria-label="Watch bpm, row '+(i+1)+'" value="'+r.watch+'"></td><td>'+(err===null?'–':err+' bpm')+'</td>';
-      tr.querySelector('input').addEventListener('change',e=>{rows[i].watch=e.target.value;persist();drawRows();});
+      tr.innerHTML='<td>'+(r.cond||'–')+'</td><td class="r-'+bpmRange(r.bpm)+'">'+r.bpm+'</td><td>'+r.score+'</td><td><input type="number" inputmode="numeric" placeholder="type" aria-label="Your manual count, row '+(i+1)+'" value="'+r.watch+'"></td><td>'+(err===null?'–':err+' bpm')+'</td>';
+      tr.querySelector('input').addEventListener('change',e=>{rows[i].watch=e.target.value;persist();drawRows();if(locked&&locked.row===rows[i]){$('manualIn').value=rows[i].watch;manualNote();}});
       tb.appendChild(tr);
     });
     $('emptyRows').hidden=rows.length>0;
-    $('stats').innerHTML=CONDS.map(c=>{const a=avgFor(c);return '<div><span class="micro">'+c+'<br>average error</span><strong>'+(a===null?'<span class="none">0.0</span>':a.toFixed(1)+'<small>bpm</small>')+'</strong></div>';}).join('');
   }
-  $('saveBtn').addEventListener('click',()=>{ if(!last) return; rows.push({cond,bpm:last.bpm,score:last.score,watch:''}); persist(); drawRows();
-    if(window.gsap&&!reduce){ const tr=$('rows').lastElementChild; gsap.from(tr,{backgroundColor:'rgba(218,245,107,.22)',duration:1.4,ease:'power2.out'}); gsap.from(tr.children,{y:10,opacity:0,stagger:.05,duration:.45,ease:'power2.out'}); gsap.fromTo('#saveBtn',{scale:.94},{scale:1,duration:.5,ease:'back.out(3)'}); } });
-  $('clearBtn').addEventListener('click',()=>{ rows=[]; persist(); drawRows(); });
+  // Called once when a measurement locks. Older rows may still carry a condition; new ones have none.
+  function logReading(r){
+    const row={cond:'',bpm:r.bpm,score:r.score,watch:''};
+    rows.push(row); persist(); drawRows();
+    if(window.gsap&&!reduce){ const tr=$('rows').lastElementChild; gsap.from(tr,{backgroundColor:'rgba(194,149,106,.22)',duration:1.4,ease:'power2.out'}); }
+    return row;
+  }
+  // Manual count typed in the result card, next to the camera.
+  function manualNote(){
+    const row=locked&&locked.row, live=row&&rows.includes(row);
+    let txt=live?'Logged below.':'Removed from the log.';
+    if(live&&hasWatch(row)) txt='Difference '+Math.abs(row.bpm-(+row.watch))+' bpm. '+txt;
+    $('manualNote').textContent=txt;
+  }
+  $('manualIn').addEventListener('input',e=>{
+    const row=locked&&locked.row; if(!row||!rows.includes(row)) return;
+    row.watch=e.target.value; persist(); drawRows(); manualNote();
+  });
+  $('clearBtn').addEventListener('click',()=>{ rows=[]; persist(); drawRows(); if(locked) manualNote(); });
   $('copyBtn').addEventListener('click',async()=>{
-    const txt='Condition\tWebcam bpm\tQuality\tWatch bpm\tError\n'+rows.map(r=>[r.cond,r.bpm,r.score,r.watch,hasWatch(r)?Math.abs(r.bpm-(+r.watch)):''].join('\t')).join('\n')
-      +'\n\nAverage error\n'+CONDS.map(c=>{const a=avgFor(c);return c+'\t'+(a===null?'–':a.toFixed(1)+' bpm');}).join('\n');
+    const txt='Condition\tWebcam bpm\tSignal quality\tYour manual count\tDifference\n'+rows.map(r=>[r.cond||'–',r.bpm,r.score,r.watch,hasWatch(r)?Math.abs(r.bpm-(+r.watch)):''].join('\t')).join('\n');
     const b=$('copyBtn');
     try{ await navigator.clipboard.writeText(txt); b.textContent='Copied'; }catch(e){ b.textContent='Copy blocked here'; }
     setTimeout(()=>{b.textContent='Copy results';},1800);
@@ -520,67 +974,44 @@ footer .sig .serif{display:block;color:var(--lime);font-size:1.06em;margin-left:
 })();
 </script>
 <script>
+// Page motion (GSAP + ScrollTrigger). One motion language: elements fade in and rise a little,
+// with the same duration and easing everywhere. Purely visual; it never touches the measurement.
 (function(){
-  if(!window.gsap || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const root=document.documentElement;
+  if(!window.gsap){ root.classList.remove('motion'); return; } // CDN failed: just show the page
   if(window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
   const ST=!!window.ScrollTrigger;
-  const onScroll=(trigger,start)=>ST?{scrollTrigger:{trigger,start:start||'top 85%'}}:{};
+  const M={ease:'power3.out',dur:.8,rise:20,stagger:.08}; // shared timing (the lock animation uses the same values)
 
-  // split the big title into letters
-  const h1=document.querySelector('.title h1');
-  const txt=h1.textContent; h1.setAttribute('aria-label',txt);
-  h1.innerHTML=txt.split('').map(c=>'<span class="ch" aria-hidden="true" style="display:inline-block">'+(c===' '?'&nbsp;':c)+'</span>').join('');
+  gsap.matchMedia().add({motion:'(prefers-reduced-motion: no-preference)',reduce:'(prefers-reduced-motion: reduce)'},ctx=>{
+    if(ctx.conditions.reduce){ root.classList.remove('motion'); return; } // reduced motion: no movement at all
 
-  // hero intro
-  gsap.timeline({defaults:{ease:'power3.out'}})
-    .from('.topbar .who > *, nav .pill',{y:-14,opacity:0,duration:.7,stagger:.06})
-    .from('.intro > *',{y:24,opacity:0,duration:.8,stagger:.08},'-=.45')
-    .from('.cam',{y:34,opacity:0,duration:1.1},'-=.75')
-    .from('.readout > *',{y:20,opacity:0,duration:.7,stagger:.06},'-=.85')
-    .from('.title',{opacity:0,duration:.4},'-=.5')
-    .from('.title .ch',{yPercent:70,opacity:0,duration:1,stagger:.035,ease:'expo.out'},'-=.25')
-    .from('.title .meta > *, .title .sub > *',{y:12,opacity:0,duration:.6,stagger:.06},'-=.8');
+    // ---- hero, on load. Every tween is fromTo, so each one ends exactly at the resting position. ----
+    const show={autoAlpha:1,y:0,duration:M.dur,ease:M.ease};
+    gsap.timeline({onComplete:()=>root.classList.remove('motion')})
+      .fromTo('.topbar',{autoAlpha:0,y:-10},show)
+      .fromTo('.intro',{autoAlpha:0,y:M.rise},show,'-=.6')
+      .fromTo('.cam',{autoAlpha:0,y:M.rise},show,'-=.65')
+      .fromTo('.readout',{autoAlpha:0,y:M.rise},show,'-=.65')
+      .fromTo('.title',{autoAlpha:0},{autoAlpha:1,duration:.5,ease:'none'},'-=.5')
+      // wordmark: rises from 32px below and ends at y:0. The scroll parallax below uses yPercent,
+      // a separate property, so the two can never leave an offset behind.
+      .fromTo('.title h1',{y:32},{y:0,duration:1.2,ease:M.ease},'<');
 
-  // gentle parallax as you scroll away from the hero
-  if(ST){
-    gsap.to('.title h1',{yPercent:-14,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:true}});
-    gsap.to('.frame',{y:-36,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:true}});
-  }
+    if(ST){
+      // gentle parallax when scrolling away from the hero (explicit start values, see note above)
+      const away={trigger:'.hero',start:'top top',end:'bottom top',scrub:true};
+      gsap.fromTo('.title h1',{yPercent:0},{yPercent:-14,ease:'none',immediateRender:false,scrollTrigger:away});
+      gsap.fromTo('.frame',{yPercent:0},{yPercent:-6,ease:'none',immediateRender:false,scrollTrigger:away});
 
-  // section headings: sans line rises, serif line slides in
-  document.querySelectorAll('.sec-head').forEach(sh=>{
-    const t=gsap.timeline(onScroll(sh,'top 80%'));
-    t.from(sh.querySelector('.sec-num'),{x:-20,opacity:0,duration:.6,ease:'power3.out'})
-     .from(sh.querySelector('h2'),{y:50,opacity:0,duration:.9,ease:'power4.out'},'-=.4')
-     .from(sh.querySelector('h2 .serif'),{x:-48,opacity:0,duration:1.1,ease:'power3.out'},'-=.65');
-    const p=sh.querySelector('p'); if(p) t.from(p,{y:16,opacity:0,duration:.6,ease:'power2.out'},'-=.6');
+      // ---- sections, on scroll, once per element ----
+      const rise=(el,delay)=>gsap.fromTo(el,{autoAlpha:0,y:M.rise},{autoAlpha:1,y:0,duration:M.dur,ease:M.ease,delay:delay||0,scrollTrigger:{trigger:el,start:'top 88%',once:true}});
+      document.querySelectorAll('.sec-head').forEach(sh=>sh.querySelectorAll('.sec-num, h2, p').forEach((el,i)=>rise(el,i*M.stagger)));
+      gsap.utils.toArray('.prose > *, .steps li, .tablewrap, #emptyRows, .tools, footer > *').forEach(el=>rise(el));
+      window.addEventListener('load',()=>ScrollTrigger.refresh());
+    }
+    return ()=>root.classList.remove('motion');
   });
-
-  // test section
-  gsap.from('.picker > *',Object.assign({y:16,opacity:0,duration:.5,stagger:.06,ease:'power2.out'},onScroll('.picker')));
-  gsap.from('#stats > div',Object.assign({y:28,opacity:0,duration:.75,stagger:.09,ease:'power3.out'},onScroll('#stats')));
-  gsap.from('.test thead, #emptyRows, .tools',Object.assign({opacity:0,y:10,duration:.6,stagger:.08},onScroll('.tablewrap','top 90%')));
-
-  // how it works steps
-  gsap.utils.toArray('.steps li').forEach(li=>gsap.from(li,Object.assign({y:32,opacity:0,duration:.8,ease:'power3.out'},onScroll(li,'top 88%'))));
-
-  // build log
-  gsap.utils.toArray('.prose > *').forEach(el=>gsap.from(el,Object.assign({y:20,opacity:0,duration:.7,ease:'power2.out'},onScroll(el,'top 90%'))));
-
-  // footer name
-  const ft=gsap.timeline(onScroll('footer','top 92%'));
-  ft.from('footer .sig',{y:40,opacity:0,duration:.9,ease:'power4.out'})
-    .from('footer .sig .serif',{x:-48,opacity:0,duration:1,ease:'power3.out'},'-=.6')
-    .from('footer > .micro',{opacity:0,duration:.6},'-=.5');
-
-  // buttons respond to the pointer
-  document.querySelectorAll('.btn, .chip').forEach(b=>{
-    b.addEventListener('mouseenter',()=>{ if(!b.disabled) gsap.to(b,{scale:1.04,duration:.25,ease:'power2.out'}); });
-    b.addEventListener('mouseleave',()=>gsap.to(b,{scale:1,duration:.3,ease:'power2.out'}));
-  });
-  document.querySelectorAll('.chip').forEach(c=>c.addEventListener('click',()=>gsap.fromTo(c,{scale:.92},{scale:1,duration:.45,ease:'back.out(3)'})));
-
-  if(ST) window.addEventListener('load',()=>ScrollTrigger.refresh());
 })();
 </script>
 </body>
