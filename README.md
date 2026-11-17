@@ -7,9 +7,7 @@
 > camera that's already in the control loop — no wearable — and flags when the
 > operator, or the reading itself, can't be trusted.
 
-> **[ Screenshot placeholder ]** Add a screenshot of the locked-reading state as
-> `docs/screenshot.png` and replace this block with
-> `![Telesis showing a locked heart-rate reading](docs/screenshot.png)`.
+![Telesis: a locked reading showing the heart rate and operator-state verdict](docs/hero.jpg)
 
 <!-- Live demo: add after deploy -->
 
@@ -26,6 +24,8 @@ safety-critical settings — remote surgery, hazardous environments, logistics. 
 fatigued or distracted operator is a real risk. Telesis explores sensing operator
 readiness continuously and contactlessly, as a prerequisite for trusting a
 human-in-the-loop system.
+
+![Operator driving a teleoperated robot](docs/who-its-for.jpg)
 
 ## How it works
 1. Face tracking locates the forehead and cheeks as regions of interest.
